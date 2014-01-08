@@ -25,7 +25,7 @@
 
 // Returns directory path (including last slash) in dir, filename without
 // extension in file, extension (including the dot) in ext
-void GetFileNameParts(const std::string& filename,
+static void GetFileNameParts(const std::string& filename,
     std::string* dir, std::string* file, std::string* ext) {
   size_t npos = (size_t)(-1);
   size_t slashpos = filename.find_last_of("/\\");
@@ -48,7 +48,7 @@ void GetFileNameParts(const std::string& filename,
 }
 
 // Returns the size of the file
-size_t GetFileSize(const std::string& filename) {
+static size_t GetFileSize(const std::string& filename) {
   size_t size;
   FILE* file = fopen(filename.c_str(), "rb");
   if (!file) return 0;
@@ -58,8 +58,9 @@ size_t GetFileSize(const std::string& filename) {
   return size;
 }
 
-void ShowHelp() {
-  printf("ZopfliPNG, a Portable Network Graphics (PNG) image optimizer.\n"
+inline static void ShowHelp() {
+  static const char HelpText[] = 
+         "ZopfliPNG, a Portable Network Graphics (PNG) image optimizer.\n"
          "\n"
          "Usage: zopflipng [options]... infile.png outfile.png\n"
          "       zopflipng [options]... --prefix=[fileprefix] [files.png]...\n"
@@ -121,17 +122,24 @@ void ShowHelp() {
          "Optimize multiple files: zopflipng --prefix a.png b.png c.png\n"
          "Compress really good and trying all filter strategies: zopflipng"
          " --iterations=500 --splitting=3 --filters=01234mepb"
-         " --lossy_8bit --lossy_transparent infile.png outfile.png\n");
+         " --lossy_8bit --lossy_transparent infile.png outfile.png\n";
+  fwrite(HelpText, 1, sizeof(HelpText)-1, stdout);
 }
 
-void PrintSize(const char* label, size_t size) {
+inline static void PrintSize(const char* label, size_t size) {
   printf("%s: %d (%dK)\n", label, (int) size, (int) size / 1024);
 }
 
-void PrintResultSize(const char* label, size_t oldsize, size_t newsize) {
+inline static void PrintResultSize(const char* label, size_t oldsize, size_t newsize) {
   printf("%s: %d (%dK). Percentage of original: %.3f%%\n",
          label, (int) newsize, (int) newsize / 1024, newsize * 100.0 / oldsize);
 }
+
+#define isarg(argname, arg) (!strncmp(arg, argname, sizeof(argname)-1) && \
+	                         (arg[sizeof(argname)-1] == '\0' || \
+							  arg[sizeof(argname)-1] == '='))
+#define argvalue(argname, arg) (&arg[sizeof(argname)])
+#define arghasvalue(argname, arg) (arg[sizeof(argname)-1] == '=')
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -151,52 +159,30 @@ int main(int argc, char *argv[]) {
   std::string prefix = "zopfli_";  // prefix for output filenames
 
   std::vector<std::string> files;
-  std::vector<char> options;
   for (int i = 1; i < argc; i++) {
-    std::string arg = argv[i];
-    if (arg[0] == '-' && arg.size() > 1 && arg[1] != '-') {
-      for (size_t pos = 1; pos < arg.size(); pos++) {
-        char c = arg[pos];
-        if (c == 'y') {
-          yes = true;
-        } else if (c == 'd') {
-          dryrun = true;
-        } else if (c == 'm') {
-          png_options.num_iterations *= 4;
-          png_options.num_iterations_large *= 4;
-          png_options.block_split_strategy = 3;
-        } else if (c == 'q') {
-          png_options.use_zopfli = false;
-        } else if (c == 'h') {
-          ShowHelp();
-          return 0;
-        } else {
-          printf("Unknown flag: %c\n", c);
-          return 0;
-        }
-      }
-    } else if (arg[0] == '-' && arg.size() > 1 && arg[1] == '-') {
-      size_t eq = arg.find('=');
-      std::string name = arg.substr(0, eq);
-      std::string value = eq >= arg.size() - 1 ? "" : arg.substr(eq + 1);
-      int num = atoi(value.c_str());
-      if (name == "--always_zopflify") {
+    char *arg = argv[i];
+	if (((short *)arg)[0] == ('-' << 8 | '-')) {
+      if (isarg("--always_zopflify", arg)) {
         always_zopflify = true;
-      } else if (name == "--lossy_transparent") {
+      } else if (isarg("--lossy_transparent", arg)) {
         png_options.lossy_transparent = true;
-      } else if (name == "--lossy_8bit") {
+      } else if (isarg("--lossy_8bit", arg)) {
         png_options.lossy_8bit = true;
-      } else if (name == "--iterations") {
+      } else if (isarg("--iterations", arg)) {
+        int num = arghasvalue("--iterations", arg) ? atoi(argvalue("--iterations", arg)) : 1;
         if (num < 1) num = 1;
         png_options.num_iterations = num;
         png_options.num_iterations_large = num;
-      } else if (name == "--splitting") {
+      } else if (isarg("--splitting", arg)) {
+        int num = arghasvalue("--splitting", arg) ? atoi(argvalue("--splitting", arg)) : 1;
         if (num < 0 || num > 3) num = 1;
         png_options.block_split_strategy = num;
-      } else if (name == "--filters") {
-        for (size_t j = 0; j < value.size(); j++) {
-          ZopfliPNGFilterStrategy strategy = kStrategyZero;
-          char f = value[j];
+      } else if (isarg("--filters", arg)) {
+        if (!arghasvalue("--filters", arg))
+			continue;
+        for (char *j = argvalue("--filters", arg); *j; j++) {
+          ZopfliPNGFilterStrategy strategy;
+          char f = *j;
           switch (f) {
             case '0': strategy = kStrategyZero; break;
             case '1': strategy = kStrategyOne; break;
@@ -216,7 +202,10 @@ int main(int argc, char *argv[]) {
           // given.
           png_options.auto_filter_strategy = false;
         }
-      } else if (name == "--keepchunks") {
+      } else if (isarg("--keepchunks", arg)) {
+        if (!arghasvalue("--keepchunks", arg))
+			continue;
+		std::string value = argvalue("--keepchunks", arg);
         bool correct = true;
         if ((value.size() + 1) % 5 != 0) correct = false;
         for (size_t i = 0; i + 4 <= value.size() && correct; i += 5) {
@@ -228,15 +217,37 @@ int main(int argc, char *argv[]) {
                  " --keepchunks=gAMA,cHRM,sRGB,iCCP\n");
           return 0;
         }
-      } else if (name == "--prefix") {
+      } else if (isarg("--prefix", arg)) {
         use_prefix = true;
-        if (!value.empty()) prefix = value;
-      } else if (name == "--help") {
+		if (arghasvalue("--filters", arg) && argvalue("--filters", arg)[0])
+          prefix = argvalue("--filters", arg);
+      } else if (isarg("--help", arg)) {
         ShowHelp();
         return 0;
       } else {
-        printf("Unknown flag: %s\n", name.c_str());
+        printf("Unknown flag: %s\n", arg);
         return 0;
+      }
+	} else if (arg[0] == '-') {
+      for (char *pos = arg; *pos; pos++) {
+        char c = *pos;
+        if (c == 'y') {
+          yes = true;
+        } else if (c == 'd') {
+          dryrun = true;
+        } else if (c == 'm') {
+          png_options.num_iterations *= 4;
+          png_options.num_iterations_large *= 4;
+          png_options.block_split_strategy = 3;
+        } else if (c == 'q') {
+          png_options.use_zopfli = false;
+        } else if (c == 'h') {
+          ShowHelp();
+          return 0;
+        } else {
+          printf("Unknown flag: %c\n", c);
+          return 0;
+        }
       }
     } else {
       files.push_back(argv[i]);

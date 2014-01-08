@@ -23,6 +23,7 @@ Author: jyrki.alakuijala@gmail.com (Jyrki Alakuijala)
 #include <math.h>
 #include <stdio.h>
 
+#include "ftol_magic.h"
 #include "blocksplitter.h"
 #include "deflate.h"
 #include "tree.h"
@@ -40,11 +41,7 @@ typedef struct SymbolStats {
 
 /* Sets everything to 0. */
 static void InitStats(SymbolStats* stats) {
-  memset(stats->litlens, 0, 288 * sizeof(stats->litlens[0]));
-  memset(stats->dists, 0, 32 * sizeof(stats->dists[0]));
-
-  memset(stats->ll_symbols, 0, 288 * sizeof(stats->ll_symbols[0]));
-  memset(stats->d_symbols, 0, 32 * sizeof(stats->d_symbols[0]));
+  memset(stats, 0, sizeof(*stats));
 }
 
 static void CopyStats(SymbolStats* source, SymbolStats* dest) {
@@ -487,7 +484,10 @@ void ZopfliLZ77Optimal(ZopfliBlockState *s,
     cost = ZopfliCalculateBlockSize(currentstore.litlens, currentstore.dists,
                                     0, currentstore.size, 2);
     if (s->options->verbose_more || (s->options->verbose && cost < bestcost)) {
-      fprintf(stderr, "Iteration %d: %d bit\n", i, (int) cost);
+      ftol_magic cost2;
+	  ftol_magic_setdouble(cost2, cost);
+	  ftol_magic_convert(cost2);
+      fprintf(stderr, "Iteration %d: %d bit\n", i, ftol_magic_getlong(cost2));
     }
     if (cost < bestcost) {
       /* Copy to the output store. */
