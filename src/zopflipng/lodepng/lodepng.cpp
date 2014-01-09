@@ -1495,15 +1495,21 @@ static unsigned encodeLZ77(uivector* out, Hash* hash,
       if(hash->val[wpos] == (int)hashval)
       {
         unsigned chainlength = 0;
+        /*!!This loop is the hotspot!!*/
         for(;;)
         {
           /*stop when went completely around the circular buffer*/
-          if(prevpos < wpos && hashpos > prevpos && hashpos <= wpos) break;
-          if(prevpos > wpos && (hashpos <= wpos || hashpos > prevpos)) break;
+          /*if(prevpos < wpos && hashpos > prevpos && hashpos <= wpos) break;
+          if(prevpos > wpos && (hashpos <= wpos || hashpos > prevpos)) break;*/
+          if (prevpos <= wpos) {
+            if (hashpos > prevpos && hashpos <= wpos)
+              break;
+          } else if (hashpos <= wpos || hashpos > prevpos)
+            break;
           if(chainlength++ >= maxchainlength) break;
 
-          current_offset = hashpos <= wpos ? wpos - hashpos : wpos - hashpos + windowsize;
-          if(current_offset > 0)
+          current_offset = wpos - hashpos;
+          if(current_offset != 0 && ((int)current_offset > 0 || (current_offset += windowsize) != 0))
           {
             /*test the next characters*/
             foreptr = &in[pos];
