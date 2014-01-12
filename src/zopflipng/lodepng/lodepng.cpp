@@ -42,6 +42,7 @@ void __movsd(unsigned long *, unsigned long const *, size_t);
 void __stosb(unsigned char *, unsigned char, size_t);
 void __stosd(unsigned long *, unsigned long, size_t);
 unsigned long __cdecl _byteswap_ulong(unsigned long);
+unsigned char _BitScanReverse(unsigned long * _Index, unsigned long _Mask);
 #ifdef __cplusplus
 }
 #endif
@@ -55,7 +56,9 @@ static void __stosb(unsigned char *dst, unsigned char n, size_t i)
 static void __stosd(unsigned long *dst, unsigned long n, size_t i)
 {memset(dst, n, i * sizeof(unsigned long));}
 unsigned long __cdecl _byteswap_ulong(unsigned long)
-{return (unsigned long)bswap_32((int32_t)long)}
+{return (unsigned long)bswap_32((int32_t)long);}
+#define _BitScanReverse(_Index, _Mask)\
+((*_Index) = __builtin_clz(_Mask))
 #endif
 
 #ifdef LODEPNG_COMPILE_CPP
@@ -1432,16 +1435,37 @@ static void addLengthDistance(uivector* values, size_t length, size_t distance)
   256: end
   257-285: length/distance pair (length code, followed by extra length bits, distance code, extra distance bits)
   286-287: invalid*/
-
+/*
   unsigned length_code = (unsigned)searchCodeIndex(LENGTHBASE, 29, length);
   unsigned extra_length = (unsigned)(length - LENGTHBASE[length_code]);
   unsigned dist_code = (unsigned)searchCodeIndex(DISTANCEBASE, 30, distance);
   unsigned extra_distance = (unsigned)(distance - DISTANCEBASE[dist_code]);
+*/
+  unsigned long msb;
+  unsigned length_code, extra_length, dist_code, extra_distance;
+  length_code = length - 3;
+  extra_length = 0;
+  if (length_code > 8) {
+	  _BitScanReverse(&msb, length_code);
+	  msb -= 2;
+	  extra_length = ((1 << msb) - 1) & length_code;
+	  length_code = (length_code >> msb) + (4 * msb);
+  }
+  dist_code = distance - 1;
+  extra_distance = 0;
+  if (dist_code > 4) {
+	  _BitScanReverse(&msb, dist_code);
+	  msb -= 1;
+	  extra_distance = ((1 << msb) - 1) & dist_code;
+	  dist_code = (dist_code >> msb) + (2 * msb);
+  }
 
-  uivector_push_back(values, length_code + FIRST_LENGTH_CODE_INDEX);
-  uivector_push_back(values, extra_length);
-  uivector_push_back(values, dist_code);
-  uivector_push_back(values, extra_distance);
+  size_t size = values->size;
+  uivector_resize(values, values->size + 4);
+  values->data[size++] = length_code + FIRST_LENGTH_CODE_INDEX;
+  values->data[size++] = extra_length;
+  values->data[size++] = dist_code;
+  values->data[size++] = extra_distance;
 }
 
 static const unsigned HASH_NUM_VALUES = 65536;
@@ -1541,168 +1565,176 @@ this hash technique is one out of several ways to speed this up.
 unsigned __fastcall _encodeLZ77(size_t inpos, unsigned windowsize,
                   /*arg(1) - arg(4)*/  uivector* out, Hash* hash, const unsigned char* in, size_t insize, 
                   /*arg(5) - arg(7)*/  unsigned minmatch, unsigned nicematch, unsigned lazymatching);
+static unsigned __encodeLZ77(uivector* out, Hash* hash,
 #else
 static unsigned encodeLZ77(uivector* out, Hash* hash,
+#endif
                            const unsigned char* in, size_t inpos, size_t insize, unsigned windowsize,
                            unsigned minmatch, unsigned nicematch, unsigned lazymatching)
 {
-  unsigned short numzeros = 0;
-  int usezeros = windowsize >= 8192; /*for small window size, the 'max chain length' optimization does a better job*/
-  unsigned pos, i, error = 0;
+  unsigned error = 0;
+  bool lazy = 0;
+  bool usezeros = windowsize >= 8192; /*for small window size, the 'max chain length' optimization does a better job*/
   /*for large window lengths, assume the user wants no compression loss. Otherwise, max hash chain length speedup.*/
   unsigned maxchainlength = windowsize >= 8192 ? windowsize : windowsize / 8;
   unsigned maxlazymatch = windowsize >= 8192 ? MAX_SUPPORTED_DEFLATE_LENGTH : 64;
 
-  if(!error)
+  const unsigned char* curpos = &in[inpos];
+  const unsigned char* maxpos = &in[insize];
+  unsigned shortloopindicator = 0;
+  for(; curpos < maxpos; curpos++)
   {
-    unsigned offset; /*the offset represents the distance in LZ77 terminology*/
-    unsigned length;
-    unsigned lazy = 0;
-    unsigned lazylength = 0, lazyoffset = 0;
-    unsigned hashval;
-    unsigned current_offset, current_length;
-    const unsigned char *lastptr, *foreptr, *backptr;
-    unsigned short hashpos, prevpos;
-    for(pos = inpos; pos < insize; pos++)
+    bool usezerosnow;
+    size_t pos = curpos - in;
+    size_t wpos = pos % windowsize; /*position for in 'circular' hash buffers*/
+    unsigned lazylength, lazyoffset;
+    unsigned hashval, numzeros, length, offset; /*the offset represents the distance in LZ77 terminology*/
+    const unsigned char *lastptr;
+    unsigned hashpos, prevpos;
+    unsigned chainlength;
+
+    /* get hash */
+    hashval = 0;
+    if(maxpos >= curpos)
     {
-      size_t wpos = pos % windowsize; /*position for in 'circular' hash buffers*/
-
-      hashval = getHash(in, insize, pos);
-      updateHashChain(hash, pos, hashval, windowsize);
-
-      if(usezeros && hashval == 0)
+      unsigned amount = maxpos - curpos;
+      if(amount >= HASH_NUM_CHARACTERS) amount = HASH_NUM_CHARACTERS;
+      do
       {
-        numzeros = countZeros(in, insize, pos);
-        hash->zeros[wpos] = numzeros;
-      }
+        --amount;
+        hashval ^= curpos[amount] << (amount * HASH_SHIFT);
+      } while(amount);
+      hashval %= HASH_NUM_VALUES;
+    }
+    hash->val[wpos] = hashval;
+    if(hash->head[hashval] != -1) hash->chain[wpos] = hash->head[hashval];
+    hash->head[hashval] = (int)wpos;
 
-      /*the length and offset found for the current position*/
-      length = 0;
-      offset = 0;
+    lastptr = curpos + MAX_SUPPORTED_DEFLATE_LENGTH;
+    if(lastptr > maxpos) lastptr = maxpos;
+    usezerosnow = usezeros && hashval == 0;
+    if(usezerosnow)
+    {
+      const unsigned char* data = curpos;
+      while (data != lastptr && *data == 0) data++;
+      numzeros = data - curpos;
+      hash->zeros[wpos] = numzeros;
+    }
 
-      prevpos = hash->head[hashval];
-      hashpos = hash->chain[prevpos];
+    if(shortloopindicator)
+    {
+      if(--shortloopindicator)
+        continue;
+    }
 
-      lastptr = &in[insize < pos + MAX_SUPPORTED_DEFLATE_LENGTH ? insize : pos + MAX_SUPPORTED_DEFLATE_LENGTH];
+    /*the length and offset found for the current position*/
+    length = 0;
+    offset = 0;
+    prevpos = (unsigned)wpos;
+    hashpos = hash->chain[prevpos];
 
-      /*search for the longest string*/
-      if(hash->val[wpos] == (int)hashval)
+    chainlength = maxchainlength;
+    /*search for the longest string*/
+    while(1)
+    {
+      unsigned current_offset, current_length;
+
+      /*stop when went completely around the circular buffer*/
+      if (prevpos <= wpos)
       {
-        unsigned chainlength = 0;
-        /*!!This loop is the hotspot!!*/
-        for(;;)
+        if (hashpos > prevpos && hashpos <= wpos)
+          break;
+      } else if (hashpos <= wpos || hashpos > prevpos)
+        break;
+      if(chainlength-- == 0) break;
+
+      current_offset = (unsigned)(wpos - hashpos);
+      if(current_offset != 0 && ((int)current_offset > 0 || (current_offset += windowsize) != 0))
+      {
+        /*test the next characters*/
+        const unsigned char *foreptr = curpos;
+        const unsigned char *backptr = foreptr - current_offset;
+
+        /*common case in PNGs is lots of zeros. Quickly skip over them as a speedup*/
+        if(usezerosnow && hash->val[hashpos] == 0 /*hashval[hashpos] may be out of date*/)
         {
-          /*stop when went completely around the circular buffer*/
-          /*if(prevpos < wpos && hashpos > prevpos && hashpos <= wpos) break;
-          if(prevpos > wpos && (hashpos <= wpos || hashpos > prevpos)) break;*/
-          if (prevpos <= wpos) {
-            if (hashpos > prevpos && hashpos <= wpos)
-              break;
-          } else if (hashpos <= wpos || hashpos > prevpos)
-            break;
-          if(chainlength++ >= maxchainlength) break;
+          unsigned skip = hash->zeros[hashpos];
+          if (skip > numzeros) skip = numzeros;
+          backptr += skip;
+          foreptr += skip;
+        }
+        
+        /* multiple checks at once per array bounds check */
+        while(foreptr != lastptr && *backptr == *foreptr) /*maximum supported length by deflate is max length*/
+        {
+          ++backptr;
+          ++foreptr;
+        }
 
-          current_offset = wpos - hashpos;
-          if(current_offset != 0 && ((int)current_offset > 0 || (current_offset += windowsize) != 0))
-          {
-            /*test the next characters*/
-            foreptr = &in[pos];
-            backptr = &in[pos - current_offset];
-
-            /*common case in PNGs is lots of zeros. Quickly skip over them as a speedup*/
-            if(usezeros && hashval == 0 && hash->val[hashpos] == 0 /*hashval[hashpos] may be out of date*/)
-            {
-              unsigned short skip = hash->zeros[hashpos];
-              if(skip > numzeros) skip = numzeros;
-              backptr += skip;
-              foreptr += skip;
-            }
-
-            /* multiple checks at once per array bounds check */
-            while(foreptr != lastptr && *backptr == *foreptr) /*maximum supported length by deflate is max length*/
-            {
-              ++backptr;
-              ++foreptr;
-            }
-            current_length = (unsigned)(foreptr - &in[pos]);
-
-            if(current_length > length)
-            {
-              length = current_length; /*the longest length*/
-              offset = current_offset; /*the offset that is related to this longest length*/
-              /*jump out once a length of max length is found (speed gain)*/
-              if(current_length >= nicematch || current_length == MAX_SUPPORTED_DEFLATE_LENGTH) break;
-            }
-          }
-
-          if(hashpos == hash->chain[hashpos]) break;
-
-          prevpos = hashpos;
-          hashpos = hash->chain[hashpos];
+        current_length = (unsigned)(foreptr - curpos);
+        if(current_length > length)
+        {
+          length = current_length; /*the longest length*/
+          offset = current_offset; /*the offset that is related to this longest length*/
+          /*jump out once a length of max length is found (speed gain)*/
+          if(current_length >= nicematch || current_length == MAX_SUPPORTED_DEFLATE_LENGTH) break;
         }
       }
+      if(hashpos == hash->chain[hashpos]) break;
 
-      if(lazymatching)
+      prevpos = hashpos;
+      hashpos = hash->chain[hashpos];
+    }
+
+    if(lazymatching)
+    {
+      if(lazy)
       {
-        if(!lazy && length >= 3 && length <= maxlazymatch && length < MAX_SUPPORTED_DEFLATE_LENGTH)
+        lazy = 0;
+        if(length > lazylength + 1)
         {
-          lazy = 1;
-          lazylength = length;
-          lazyoffset = offset;
-          continue; /*try the next byte*/
+          /*push the previous character as literal*/
+          if(!uivector_push_back(out, curpos[-1])) ERROR_BREAK(83 /*alloc fail*/);
         }
-        if(lazy)
+        else
         {
-          lazy = 0;
-          if(pos == 0) ERROR_BREAK(81);
-          if(length > lazylength + 1)
-          {
-            /*push the previous character as literal*/
-            if(!uivector_push_back(out, in[pos - 1])) ERROR_BREAK(83 /*alloc fail*/);
-          }
-          else
-          {
-            length = lazylength;
-            offset = lazyoffset;
-            hash->head[hashval] = -1; /*the same hashchain update will be done, this ensures no wrong alteration*/
-            pos--;
-          }
+          length = lazylength;
+          offset = lazyoffset;
+          hash->head[hashval] = -1; /*the same hashchain update will be done, this ensures no wrong alteration*/
+          curpos--;
         }
       }
-      if(length >= 3 && offset > windowsize) ERROR_BREAK(86 /*too big (or overflown negative) offset*/);
+      else if(length >= 3 && length <= maxlazymatch /*&& length < MAX_SUPPORTED_DEFLATE_LENGTH*/)
+      {
+        lazy = 1;
+        lazylength = length;
+        lazyoffset = offset;
+        continue; /*try the next byte*/
+      }
+    }
 
-      /**encode it as length/distance pair or literal value**/
-      if(length < 3) /*only lengths of 3 or higher are supported as length/distance pair*/
-      {
-        if(!uivector_push_back(out, in[pos])) ERROR_BREAK(83 /*alloc fail*/);
-      }
-      else if(length < minmatch || (length == 3 && offset > 4096))
-      {
-        /*compensate for the fact that longer offsets have more extra bits, a
-        length of only 3 may be not worth it then*/
-        if(!uivector_push_back(out, in[pos])) ERROR_BREAK(83 /*alloc fail*/);
-      }
-      else
-      {
-        addLengthDistance(out, length, offset);
-        for(i = 1; i < length; i++)
-        {
-          pos++;
-          hashval = getHash(in, insize, pos);
-          updateHashChain(hash, pos, hashval, windowsize);
-          if(usezeros && hashval == 0)
-          {
-            hash->zeros[pos % windowsize] = countZeros(in, insize, pos);
-          }
-        }
-      }
+    if(length >= 3 && offset > windowsize) ERROR_BREAK(86 /*too big (or overflown negative) offset*/);
 
-    } /*end of the loop through each character of input*/
-  } /*end of "if(!error)"*/
+    /**encode it as length/distance pair or literal value**/
+    if(length < 3) /*only lengths of 3 or higher are supported as length/distance pair*/
+	{
+      if(!uivector_push_back(out, curpos[0])) ERROR_BREAK(83 /*alloc fail*/);
+    }
+    else if(length < minmatch || (length == 3 && offset > 4096))
+    {
+      /*compensate for the fact that longer offsets have more extra bits, a
+      length of only 3 may be not worth it then*/
+      if(!uivector_push_back(out, curpos[0])) ERROR_BREAK(83 /*alloc fail*/);
+    }
+    else
+    {
+      addLengthDistance(out, length, offset);
+      shortloopindicator = length;
+    }
+  }
 
   return error;
 }
-#endif
 
 /* /////////////////////////////////////////////////////////////////////////// */
 
