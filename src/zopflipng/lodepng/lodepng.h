@@ -31,6 +31,14 @@ freely, subject to the following restrictions:
 #ifdef __cplusplus
 #include <vector>
 #include <string>
+#ifdef _MSC_VER
+inline void * operator new( size_t cb ) {
+	return malloc(cb);
+}
+inline void operator delete( void * p ) {
+	return free(p);
+}
+#endif
 #endif /*__cplusplus*/
 
 /*
