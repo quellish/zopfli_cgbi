@@ -1446,18 +1446,18 @@ static void addLengthDistance(uivector* values, size_t length, size_t distance)
   length_code = length - 3;
   extra_length = 0;
   if (length_code > 8) {
-	  _BitScanReverse(&msb, length_code);
-	  msb -= 2;
-	  extra_length = ((1 << msb) - 1) & length_code;
-	  length_code = (length_code >> msb) + (4 * msb);
+    _BitScanReverse(&msb, length_code);
+    msb -= 2;
+    extra_length = ((1 << msb) - 1) & length_code;
+    length_code = (length_code >> msb) + (4 * msb);
   }
   dist_code = distance - 1;
   extra_distance = 0;
   if (dist_code > 4) {
-	  _BitScanReverse(&msb, dist_code);
-	  msb -= 1;
-	  extra_distance = ((1 << msb) - 1) & dist_code;
-	  dist_code = (dist_code >> msb) + (2 * msb);
+    _BitScanReverse(&msb, dist_code);
+    msb -= 1;
+    extra_distance = ((1 << msb) - 1) & dist_code;
+    dist_code = (dist_code >> msb) + (2 * msb);
   }
 
   size_t size = values->size;
@@ -1505,9 +1505,9 @@ static unsigned hash_init(Hash* hash, unsigned windowsize)
   if(!hash->head || !hash->val || !hash->chain || !hash->zeros) return 83; /*alloc fail*/
 
   /*initialize hash table*/
-  for(i = 0; i < HASH_NUM_VALUES; i++) hash->head[i] = -1;
-  for(i = 0; i < windowsize; i++) hash->val[i] = -1;
-  for(i = 0; i < windowsize; i++) hash->chain[i] = i; /*same value as index indicates uninitialized*/
+  __stosd((unsigned long*)hash->head, -1, HASH_NUM_VALUES);
+  __stosd((unsigned long*)hash->val, -1, windowsize);
+  for(i = windowsize; i > 0; --i) hash->chain[i-1] = i-1; /*same value as index indicates uninitialized*/
 
   return 0;
 }
@@ -1595,7 +1595,7 @@ static unsigned encodeLZ77(uivector* out, Hash* hash,
 
     /* get hash */
     hashval = 0;
-    if(maxpos >= curpos)
+    if(maxpos > curpos)
     {
       unsigned amount = maxpos - curpos;
       if(amount >= HASH_NUM_CHARACTERS) amount = HASH_NUM_CHARACTERS;
@@ -1653,16 +1653,16 @@ static unsigned encodeLZ77(uivector* out, Hash* hash,
       {
         /*test the next characters*/
         const unsigned char *foreptr = curpos;
-        const unsigned char *backptr = foreptr - current_offset;
+        const unsigned char *backptr;
 
         /*common case in PNGs is lots of zeros. Quickly skip over them as a speedup*/
         if(usezerosnow && hash->val[hashpos] == 0 /*hashval[hashpos] may be out of date*/)
         {
           unsigned skip = hash->zeros[hashpos];
           if (skip > numzeros) skip = numzeros;
-          backptr += skip;
           foreptr += skip;
         }
+        backptr = foreptr - current_offset;
         
         /* multiple checks at once per array bounds check */
         while(foreptr != lastptr && *backptr == *foreptr) /*maximum supported length by deflate is max length*/
@@ -1717,7 +1717,7 @@ static unsigned encodeLZ77(uivector* out, Hash* hash,
 
     /**encode it as length/distance pair or literal value**/
     if(length < 3) /*only lengths of 3 or higher are supported as length/distance pair*/
-	{
+    {
       if(!uivector_push_back(out, curpos[0])) ERROR_BREAK(83 /*alloc fail*/);
     }
     else if(length < minmatch || (length == 3 && offset > 4096))
