@@ -205,6 +205,9 @@ static void vector_base_init(void* pp)
 #define ucvector_init(p)\
         vector_base_init(p)
 
+#define ucvector_init_sized(p, size)\
+        vector_base_init_sized(p, size, (size)*sizeof(unsigned char))
+
 static void *vector_base_init_sized(void* pp, size_t size, size_t sizeneeded)
 {
   ucvector *p = (ucvector*) pp;
@@ -5069,33 +5072,31 @@ static unsigned addChunk(ucvector* out, const char* chunkName, const unsigned ch
 static void writeSignature(ucvector* out)
 {
   /*8 bytes PNG signature, aka the magic bytes*/
-  ucvector_push_back(out, 137);
-  ucvector_push_back(out, 80);
-  ucvector_push_back(out, 78);
-  ucvector_push_back(out, 71);
-  ucvector_push_back(out, 13);
-  ucvector_push_back(out, 10);
-  ucvector_push_back(out, 26);
-  ucvector_push_back(out, 10);
+  size_t size;
+  unsigned char *data;
+  size = out->size;
+  ucvector_resize(out, size+8);
+  data = &out->data[size];
+  ((unsigned long *)data)[0] = 137 + (80 << 8) + (78 << 16) + (71 << 24);
+  ((unsigned long *)data)[1] = 13 + (10 << 8) + (26 << 16) + (10 << 24);
 }
 
 static unsigned addChunk_IHDR(ucvector* out, unsigned w, unsigned h,
                               LodePNGColorType colortype, unsigned bitdepth, unsigned interlace_method)
 {
   unsigned error = 0;
-  ucvector header;
-  ucvector_init(&header);
+  static const size_t IHDR_SIZE = 13;
+  unsigned char data[IHDR_SIZE];
 
-  lodepng_add32bitInt(&header, w); /*width*/
-  lodepng_add32bitInt(&header, h); /*height*/
-  ucvector_push_back(&header, (unsigned char)bitdepth); /*bit depth*/
-  ucvector_push_back(&header, (unsigned char)colortype); /*color type*/
-  ucvector_push_back(&header, 0); /*compression method*/
-  ucvector_push_back(&header, 0); /*filter method*/
-  ucvector_push_back(&header, interlace_method); /*interlace method*/
+  ((unsigned long *)data)[0] = _byteswap_ulong(w);
+  ((unsigned long *)data)[1] = _byteswap_ulong(h);
+  data[8] = (unsigned char)bitdepth;
+  data[9] = (unsigned char)colortype;
+  data[10] = 0; /*compression method*/
+  data[11] = 0; /*filter method*/
+  data[12] = (unsigned char)interlace_method;
 
-  error = addChunk(out, "IHDR", header.data, header.size);
-  ucvector_cleanup(&header);
+  error = addChunk(out, "IHDR", data, IHDR_SIZE);
 
   return error;
 }
@@ -5103,15 +5104,23 @@ static unsigned addChunk_IHDR(ucvector* out, unsigned w, unsigned h,
 static unsigned addChunk_PLTE(ucvector* out, const LodePNGColorMode* info)
 {
   unsigned error = 0;
-  size_t i;
+  size_t i, size;
   ucvector PLTE;
-  ucvector_init(&PLTE);
-  for(i = 0; i < info->palettesize * 4; i++)
+  unsigned char *dst;
+  unsigned char *src;
+
+  size = info->palettesize * 3;
+  ucvector_init_sized(&PLTE, info->palettesize * 3);
+  dst = PLTE.data;
+  src = info->palette;
+  for(i = info->palettesize; i> 0; --i)
   {
-    /*add all channels except alpha channel*/
-    if(i % 4 != 3) ucvector_push_back(&PLTE, info->palette[i]);
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst+=3; src+=4;
   }
-  error = addChunk(out, "PLTE", PLTE.data, PLTE.size);
+  error = addChunk(out, "PLTE", PLTE.data, size);
   ucvector_cleanup(&PLTE);
 
   return error;
