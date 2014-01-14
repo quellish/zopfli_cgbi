@@ -164,6 +164,10 @@
 			Name="zopflipng"
 			>
 			<File
+				RelativePath="..\zopflipng\lodepng\encodeLZ77.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\zopflipng\lodepng\lodepng.cpp"
 				>
 			</File>

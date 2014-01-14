@@ -1562,7 +1562,7 @@ sliding window (of windowsize) is used, and all past bytes in that window can be
 the "dictionary". A brute force search through all possible distances would be slow, and
 this hash technique is one out of several ways to speed this up.
 */
-#if 0
+#ifdef _MSC_VER
 #define encodeLZ77(out, hash, in, inpos, insize, windowsize, minmatch, nicematch, lazymatching) \
         _encodeLZ77(inpos, windowsize, out, hash, in, insize, minmatch, nicematch, lazymatching)
 unsigned __fastcall _encodeLZ77(size_t inpos, unsigned windowsize,
