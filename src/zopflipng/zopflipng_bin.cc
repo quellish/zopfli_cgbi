@@ -229,8 +229,8 @@ int main(int argc, char *argv[]) {
         return 0;
       }
 	} else if (arg[0] == '-') {
-      for (char *pos = arg; *pos; pos++) {
-        char c = *pos;
+      for (arg++; *arg; arg++) {
+        char c = *arg;
         if (c == 'y') {
           yes = true;
         } else if (c == 'd') {
