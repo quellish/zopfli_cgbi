@@ -116,26 +116,102 @@ varies from file to file.
 */
 #define ZOPFLI_LAZY_MATCHING
 
+#if defined(__GNUC__)
+#define ZOPFLI_UTIL_INLINE __inline static
+#elif defined(_MSC_VER)
+#define ZOPFLI_UTIL_INLINE __forceinline static
+unsigned char _BitScanReverse(unsigned long * _Index, unsigned long _Mask);
+unsigned char _bittestandset(long * _Mask, long _Index);
+#endif
+
 /*
 Gets the symbol for the given length, cfr. the DEFLATE spec.
 Returns the symbol in the range [257-285] (inclusive)
 */
-int ZopfliGetLengthSymbol(int l);
+ZOPFLI_UTIL_INLINE int ZopfliGetLengthSymbol(int l);
 
 /* Gets the amount of extra bits for the given length, cfr. the DEFLATE spec. */
-int ZopfliGetLengthExtraBits(int l);
+ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBits(int l);
 
 /* Gets value of the extra bits for the given length, cfr. the DEFLATE spec. */
-int ZopfliGetLengthExtraBitsValue(int l);
+ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBitsValue(int l);
 
 /* Gets the symbol for the given dist, cfr. the DEFLATE spec. */
-int ZopfliGetDistSymbol(int dist);
+ZOPFLI_UTIL_INLINE int ZopfliGetDistSymbol(int dist);
 
 /* Gets the amount of extra bits for the given dist, cfr. the DEFLATE spec. */
-int ZopfliGetDistExtraBits(int dist);
+ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBits(int dist);
 
 /* Gets value of the extra bits for the given dist, cfr. the DEFLATE spec. */
-int ZopfliGetDistExtraBitsValue(int dist);
+ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBitsValue(int dist);
+
+/* inline the functions declared above */
+#if defined(__GUNC__) || defined(_MSC_VER)
+ZOPFLI_UTIL_INLINE int ZopfliGetLengthSymbol(int l) {
+  extern const unsigned short ZopfliGetLengthSymbolTable[];
+  return ZopfliGetLengthSymbolTable[l];
+}
+
+ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBits(int l) {
+  extern const unsigned char ZopfliGetLengthExtraBitsTable[];
+  return ZopfliGetLengthExtraBitsTable[l];
+}
+
+ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBitsValue(int l) {
+  extern const unsigned char ZopfliGetLengthExtraBitsValueTable[];
+  return ZopfliGetLengthExtraBitsValueTable[l];
+}
+
+ZOPFLI_UTIL_INLINE int ZopfliGetDistSymbol(int d) {
+  int dist = d - 1;
+  int index;
+  if (dist > 4) {
+#if defined(__GUNC__)
+    index = 31 - __builtin_clz(dist) - 1;
+#else
+    _BitScanReverse(&index, dist);
+    index -= 1;
+#endif
+	dist = (dist >> index) + (2 * index);
+  }
+  return dist;
+}
+
+ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBits(int d) {
+  int dist = d - 1;
+  int index = 0;
+  if (dist >= 4) {
+#if defined(__GUNC__)
+    index = 31 - __builtin_clz(dist) - 1;
+#else
+    _BitScanReverse(&index, dist);
+    index -= 1;
+#endif
+  }
+  return index;
+}
+
+ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBitsValue(int d) {
+  int dist = d - 1;
+  int mask, index;
+  mask = 0;
+  if (dist > 4) {
+#if defined(__GUNC__)
+    index = 31 - __builtin_clz(dist) - 1;
+    mask = (1 << index) - 1;
+#else
+    _BitScanReverse(&index, dist);
+    index -= 1;
+/*    _bittestandset(&mask, index);
+	mask -= 1;*/
+	/* stupid M$VC always allocates a memory for the var, therefore not as efficient as bit shift */
+	mask = (1 << index) - 1;
+#endif
+	mask = dist & mask;
+  }
+  return mask;
+}
+#endif
 
 /*
 Appends value to dynamically allocated memory, doubling its allocation size
