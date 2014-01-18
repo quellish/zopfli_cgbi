@@ -738,7 +738,7 @@ unsigned lodepng_chunk_create(unsigned char** out, size_t* outlength, unsigned l
 
 
 /*Calculate CRC32 of buffer*/
-unsigned lodepng_crc32(const unsigned char* buf, size_t len);
+extern "C" unsigned long lodepng_crc32(const unsigned char* buf, size_t len);
 #endif /*LODEPNG_COMPILE_PNG*/
 
 

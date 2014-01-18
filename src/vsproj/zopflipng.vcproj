@@ -216,6 +216,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\zopfli\crc.c"
+				>
+			</File>
+			<File
+				RelativePath="..\zopfli\crc.h"
+				>
+			</File>
+			<File
 				RelativePath="..\zopfli\deflate.c"
 				>
 			</File>
@@ -254,6 +262,14 @@
 			<File
 				RelativePath="..\zopfli\lz77.c"
 				>
+				<FileConfiguration
+					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						EnableEnhancedInstructionSet="2"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath="..\zopfli\lz77.h"

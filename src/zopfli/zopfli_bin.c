@@ -172,6 +172,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
+  MakeCRCTable();
   for (i = 1; i < argc; i++) {
     if (argv[i][0] != '-') {
       char* outfilename;

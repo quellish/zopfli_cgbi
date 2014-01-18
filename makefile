@@ -3,8 +3,9 @@ CXX = g++
 
 CFLAGS = -W -Wall -Wextra -ansi -pedantic -lm -O2
 CXXFLAGS = -W -Wall -Wextra -ansi -pedantic -O2
+#CXXFLAGS = -W -Wall -Wextra -ansi -pedantic -O2 -static-libgcc -static-libstdc++
 
-ZOPFLILIB_SRC = src/zopfli/blocksplitter.c src/zopfli/cache.c\
+ZOPFLILIB_SRC = src/zopfli/blocksplitter.c src/zopfli/cache.c src/zopfli/crc.c\
                 src/zopfli/deflate.c src/zopfli/gzip_container.c\
                 src/zopfli/hash.c src/zopfli/katajainen.c\
                 src/zopfli/lz77.c src/zopfli/squeeze.c\
@@ -30,7 +31,7 @@ libzopfli:
 # ZopfliPNG binary
 zopflipng:
 	$(CC) $(ZOPFLILIB_SRC) $(CFLAGS) -c
-	$(CXX) $(ZOPFLILIB_OBJ) $(LODEPNG_SRC) $(ZOPFLIPNGLIB_SRC) $(ZOPFLIPNGBIN_SRC) $(CFLAGS) -o zopflipng
+	$(CXX) $(ZOPFLILIB_OBJ) $(LODEPNG_SRC) $(ZOPFLIPNGLIB_SRC) $(ZOPFLIPNGBIN_SRC) $(CXXFLAGS) -o zopflipng
 
 # Remove all libraries and binaries
 clean:

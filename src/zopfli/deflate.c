@@ -681,12 +681,24 @@ void ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
   ZopfliDeflatePart(options, btype, final, in, 0, insize, bp, out, outsize);
 #else
   size_t i = 0;
+  void (*fZopfliDeflatePart)(const ZopfliOptions*, int, int,
+                       const unsigned char*, size_t, size_t,
+                       unsigned char*, unsigned char**, size_t*);
+  if (options->blocksplitting) {
+    if (options->blocksplittinglast) {
+      fZopfliDeflatePart = DeflateSplittingLast;
+    } else {
+      fZopfliDeflatePart = DeflateSplittingFirst;
+    }
+  } else {
+    fZopfliDeflatePart = DeflateBlock;
+  }
   while (i < insize) {
     int masterfinal = (i + ZOPFLI_MASTER_BLOCK_SIZE >= insize);
     int final2 = final && masterfinal;
     size_t size = masterfinal ? insize - i : ZOPFLI_MASTER_BLOCK_SIZE;
-    ZopfliDeflatePart(options, btype, final2,
-                      in, i, i + size, bp, out, outsize);
+    fZopfliDeflatePart(options, btype, final2,
+                       in, i, i + size, bp, out, outsize);
     i += size;
   }
 #endif

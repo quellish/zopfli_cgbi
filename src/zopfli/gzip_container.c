@@ -24,60 +24,13 @@ Author: jyrki.alakuijala@gmail.com (Jyrki Alakuijala)
 
 #include "deflate.h"
 
-/* Table of CRCs of all 8-bit messages. */
-static unsigned long crc_table[256];
-
-/* Flag: has the table been computed? Initially false. */
-static int crc_table_computed = 0;
-
-/* Makes the table for a fast CRC. */
-static void MakeCRCTable() {
-  unsigned long c;
-  int n, k;
-  for (n = 0; n < 256; n++) {
-    c = (unsigned long) n;
-    for (k = 0; k < 8; k++) {
-      if (c & 1) {
-        c = 0xedb88320L ^ (c >> 1);
-      } else {
-        c = c >> 1;
-      }
-    }
-    crc_table[n] = c;
-  }
-  crc_table_computed = 1;
-}
-
-
-/*
-Updates a running crc with the bytes buf[0..len-1] and returns
-the updated crc. The crc should be initialized to zero.
-*/
-static unsigned long UpdateCRC(unsigned long crc,
-                               const unsigned char *buf, size_t len) {
-  unsigned long c = crc ^ 0xffffffffL;
-  unsigned n;
-
-  if (!crc_table_computed)
-    MakeCRCTable();
-  for (n = 0; n < len; n++) {
-    c = crc_table[(c ^ buf[n]) & 0xff] ^ (c >> 8);
-  }
-  return c ^ 0xffffffffL;
-}
-
-/* Returns the CRC of the bytes buf[0..len-1]. */
-static unsigned long CRC(const unsigned char* buf, int len) {
-  return UpdateCRC(0L, buf, len);
-}
-
 /*
 Compresses the data according to the gzip specification.
 */
 void ZopfliGzipCompress(const ZopfliOptions* options,
                         const unsigned char* in, size_t insize,
                         unsigned char** out, size_t* outsize) {
-  unsigned long crcvalue = CRC(in, insize);
+  unsigned long crcvalue = lodepng_crc32(in, insize);
   unsigned char bp = 0;
 
   ZOPFLI_APPEND_DATA(31, out, outsize);  /* ID1 */

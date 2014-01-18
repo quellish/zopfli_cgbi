@@ -287,13 +287,13 @@ loop1skiplazymatchinglengthae3:
 	ja error_return
 	cmp edx, arg(5)/*minmatch*/
 	jb loop1pushback
-	sub edx, 3
+	cmp edx, 3
 	jnz loop1addLengthDistance
 	cmp edi, 4096
 	ja loop1pushback
 loop1addLengthDistance:
-	lea ecx, [edx+3]
-	mov [esp+shortloopindicator], ecx   /* save length for controlling shortloop1 */
+	mov [esp+shortloopindicator], edx   /* save length for controlling shortloop1 */
+	lea edx, [edx-3]
 	xor eax, eax
 	cmp edx, 8                /*length-3     index      extra_length*/
 	jbe LengthOK              /* 0-8          a/1           a%1     */

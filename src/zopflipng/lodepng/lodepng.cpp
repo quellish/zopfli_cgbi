@@ -58,7 +58,7 @@ static void __stosd(unsigned long *dst, unsigned long n, size_t i)
 unsigned long __cdecl _byteswap_ulong(unsigned long)
 {return (unsigned long)bswap_32((int32_t)long);}
 #define _BitScanReverse(_Index, _Mask)\
-((*_Index) = __builtin_clz(_Mask))
+((*_Index) = 31 ^ __builtin_clz(_Mask))
 #endif
 
 #ifdef LODEPNG_COMPILE_CPP
@@ -1566,8 +1566,9 @@ this hash technique is one out of several ways to speed this up.
 #define encodeLZ77(out, hash, in, inpos, insize, windowsize, minmatch, nicematch, lazymatching) \
         _encodeLZ77(inpos, windowsize, out, hash, in, insize, minmatch, nicematch, lazymatching)
 unsigned __fastcall _encodeLZ77(size_t inpos, unsigned windowsize,
-                  /*arg(1) - arg(4)*/  uivector* out, Hash* hash, const unsigned char* in, size_t insize, 
-                  /*arg(5) - arg(7)*/  unsigned minmatch, unsigned nicematch, unsigned lazymatching);
+           /*arg(1) - arg(4)*/  uivector* out, Hash* hash, const unsigned char* in, size_t insize, 
+           /*arg(5) - arg(7)*/  unsigned minmatch, unsigned nicematch, unsigned lazymatching);
+
 static unsigned __encodeLZ77(uivector* out, Hash* hash,
 #else
 static unsigned encodeLZ77(uivector* out, Hash* hash,
@@ -2450,7 +2451,7 @@ const LodePNGDecompressSettings lodepng_default_decompress_settings = {0, 0, 0, 
 /* ////////////////////////////////////////////////////////////////////////// */
 
 #ifdef LODEPNG_COMPILE_PNG
-
+#ifdef LODEPNG_COMPILE_CRC32
 /* ////////////////////////////////////////////////////////////////////////// */
 /* / CRC32                                                                  / */
 /* ////////////////////////////////////////////////////////////////////////// */
@@ -2492,11 +2493,11 @@ static unsigned Crc32_update_crc(const unsigned char* buf, unsigned crc, size_t 
 }
 
 /*Return the CRC of the bytes buf[0..len-1].*/
-unsigned lodepng_crc32(const unsigned char* buf, size_t len)
+unsigned long lodepng_crc32(const unsigned char* buf, size_t len)
 {
   return Crc32_update_crc(buf, 0xffffffffL, len) ^ 0xffffffffL;
 }
-
+#endif
 /* ////////////////////////////////////////////////////////////////////////// */
 /* / Reading and writing single bits and bytes from/to stream for LodePNG   / */
 /* ////////////////////////////////////////////////////////////////////////// */

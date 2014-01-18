@@ -22,6 +22,7 @@
 
 #include "lodepng/lodepng.h"
 #include "zopflipng_lib.h"
+#include "../zopfli/crc.h"
 
 // Returns directory path (including last slash) in dir, filename without
 // extension in file, extension (including the dot) in ext
@@ -278,6 +279,7 @@ int main(int argc, char *argv[]) {
   size_t total_files_smaller = 0;
   size_t total_files_saved = 0;
   size_t total_files_equal = 0;
+  MakeCRCTable();
 
   for (size_t i = 0; i < files.size(); i++) {
     if (use_prefix && files.size() > 1) {
