@@ -129,20 +129,32 @@ static double SplitCost(size_t i, void* context) {
       EstimateCost(c->litlens, c->dists, i, c->end);
 }
 
+#ifdef _MSC_VER
+__forceinline
+#endif
 static void AddSorted(size_t value, size_t** out, size_t* outsize) {
   size_t i;
-  ZOPFLI_APPEND_DATA(value, out, outsize);
-  if (*outsize > 0) {
-    for (i = 0; i < *outsize - 1; i++) {
-      if ((*out)[i] > value) {
-        size_t j;
-        for (j = *outsize - 1; j > i; j--) {
-          (*out)[j] = (*out)[j - 1];
-        }
-        (*out)[i] = value;
-        break;
-      }
-    }
+  size_t *_out, _outsize;
+  size_t val;
+  _out = *out;
+  _outsize = *outsize;
+  if (!(_outsize & (_outsize - 1))) {
+    /*double alloc size if it's a power of two*/
+    void *temp = _outsize == 0 ? realloc(NULL, sizeof(size_t))
+                               : realloc(_out, _outsize * 2 * sizeof(size_t));
+	_out = (size_t*) temp;
+  }
+  *out = _out;
+  *outsize = _outsize + 1;
+  for (i = 0; i < _outsize; i++) {
+    if (_out[i] > value) break;
+  }
+  val = value;
+  for (; i < _outsize + 1; i++) {
+    size_t v;
+    v = _out[i];
+    _out[i] = val;
+    val = v;
   }
 }
 

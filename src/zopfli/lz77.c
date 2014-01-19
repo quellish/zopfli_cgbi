@@ -127,9 +127,20 @@ context must be a ZopfliLZ77Store*.
 */
 void ZopfliStoreLitLenDist(unsigned short length, unsigned short dist,
                            ZopfliLZ77Store* store) {
-  size_t size2 = store->size;  /* Needed for using ZOPFLI_APPEND_DATA twice. */
-  ZOPFLI_APPEND_DATA(length, &store->litlens, &store->size);
-  ZOPFLI_APPEND_DATA(dist, &store->dists, &size2);
+  size_t size = store->size;
+  unsigned short *litlens = store->litlens;
+  unsigned short *dists = store->dists;
+  if (!(size & (size-1))) {
+    litlens = (unsigned short *)(size == 0 ? realloc(0, sizeof(unsigned short))
+                      : realloc(litlens, size * 2 * sizeof(unsigned short)));
+	store->litlens = litlens;
+    dists = (unsigned short *)(size == 0 ? realloc(0, sizeof(unsigned short))
+                      : realloc(dists, size * 2 * sizeof(unsigned short)));
+	store->dists = dists;
+  }
+  litlens[size] = length;
+  dists[size] = dist;
+  store->size = size + 1;
 }
 
 /*

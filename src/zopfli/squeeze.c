@@ -310,21 +310,27 @@ the amount of lz77 symbols.
 static void TraceBackwards(size_t size, const unsigned short* length_array,
                            unsigned short** path, size_t* pathsize) {
   size_t index = size;
+  unsigned short *_path;
+  size_t _pathsize;
   if (size == 0) return;
+  _path = *path;
+  _pathsize = *pathsize;
   for (;;) {
-    ZOPFLI_APPEND_DATA(length_array[index], path, pathsize);
+    ZOPFLI_APPEND_DATA_T(unsigned short, length_array[index], _path, _pathsize);
     assert(length_array[index] <= index);
     assert(length_array[index] <= ZOPFLI_MAX_MATCH);
     assert(length_array[index] != 0);
     index -= length_array[index];
     if (index == 0) break;
   }
+  *path = _path;
+  *pathsize = _pathsize;
 
   /* Mirror result. */
-  for (index = 0; index < *pathsize / 2; index++) {
-    unsigned short temp = (*path)[index];
-    (*path)[index] = (*path)[*pathsize - index - 1];
-    (*path)[*pathsize - index - 1] = temp;
+  for (index = 0; index < _pathsize / 2; index++) {
+    unsigned short temp = _path[index];
+    _path[index] = _path[_pathsize - index - 1];
+    _path[_pathsize - index - 1] = temp;
   }
 }
 

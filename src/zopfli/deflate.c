@@ -106,7 +106,7 @@ static void AddDynamicTree(const unsigned* ll_lengths,
   unsigned hlit = 29; /* 286 - 257 */
   unsigned hdist = 29;  /* 32 - 1, but gzip does not like hdist > 29.*/
   unsigned hclen;
-  size_t i, j;
+  size_t i, j, count;
   size_t clcounts[19];
   unsigned clcl[19];  /* Code length code lengths. */
   unsigned clsymbols[19];
@@ -129,8 +129,9 @@ static void AddDynamicTree(const unsigned* ll_lengths,
     assert(lld_lengths[i] < 16);
   }
 
-  for (i = 0; i < lld_total; i++) {
-    size_t count = 0;
+  for (i = 0; i < lld_total; i += count) {
+    unsigned int rle_data, rle_bits_data;
+    count = 0;
     for (j = i; j < lld_total && lld_lengths[i] == lld_lengths[j]; j++) {
       count++;
     }
@@ -138,37 +139,41 @@ static void AddDynamicTree(const unsigned* ll_lengths,
       if (lld_lengths[i] == 0) {
         if (count > 10) {
           if (count > 138) count = 138;
-          ZOPFLI_APPEND_DATA(18, &rle, &rle_size);
-          ZOPFLI_APPEND_DATA(count - 11, &rle_bits, &rle_bits_size);
+          rle_data = 18;
+          rle_bits_data = (unsigned)count - 11;
+          goto append_data_once;
         } else {
-          ZOPFLI_APPEND_DATA(17, &rle, &rle_size);
-          ZOPFLI_APPEND_DATA(count - 3, &rle_bits, &rle_bits_size);
+          rle_data = 17;
+          rle_bits_data = (unsigned)count - 3;
+          goto append_data_once;
         }
       } else {
-        unsigned repeat = count - 1;  /* Since the first one is hardcoded. */
-        ZOPFLI_APPEND_DATA(lld_lengths[i], &rle, &rle_size);
-        ZOPFLI_APPEND_DATA(0, &rle_bits, &rle_bits_size);
+        unsigned repeat = (unsigned)count - 1;  /* Since the first one is hardcoded. */
+        ZOPFLI_APPEND_DATA_T(unsigned, lld_lengths[i], rle, rle_size);
+        ZOPFLI_APPEND_DATA_T(unsigned, 0, rle_bits, rle_bits_size);
         while (repeat >= 6) {
-          ZOPFLI_APPEND_DATA(16, &rle, &rle_size);
-          ZOPFLI_APPEND_DATA(6 - 3, &rle_bits, &rle_bits_size);
+          ZOPFLI_APPEND_DATA_T(unsigned, 16, rle, rle_size);
+          ZOPFLI_APPEND_DATA_T(unsigned, 6 - 3, rle_bits, rle_bits_size);
           repeat -= 6;
         }
         if (repeat >= 3) {
-          ZOPFLI_APPEND_DATA(16, &rle, &rle_size);
-          ZOPFLI_APPEND_DATA(repeat - 3, &rle_bits, &rle_bits_size);
+          ZOPFLI_APPEND_DATA_T(unsigned, 16, rle, rle_size);
+          ZOPFLI_APPEND_DATA_T(unsigned, repeat - 3, rle_bits, rle_bits_size);
           repeat = 0;
         }
         while (repeat != 0) {
-          ZOPFLI_APPEND_DATA(lld_lengths[i], &rle, &rle_size);
-          ZOPFLI_APPEND_DATA(0, &rle_bits, &rle_bits_size);
+          ZOPFLI_APPEND_DATA_T(unsigned, lld_lengths[i], rle, rle_size);
+          ZOPFLI_APPEND_DATA_T(unsigned, 0, rle_bits, rle_bits_size);
           repeat--;
         }
       }
-
-      i += count - 1;
     } else {
-      ZOPFLI_APPEND_DATA(lld_lengths[i], &rle, &rle_size);
-      ZOPFLI_APPEND_DATA(0, &rle_bits, &rle_bits_size);
+      rle_data = lld_lengths[i];
+      rle_bits_data = 0;
+      count = 1;
+append_data_once:
+      ZOPFLI_APPEND_DATA_T(unsigned, rle_data, rle, rle_size);
+      ZOPFLI_APPEND_DATA_T(unsigned, rle_bits_data, rle_bits, rle_bits_size);
     }
     assert(rle[rle_size - 1] <= 18);
   }
