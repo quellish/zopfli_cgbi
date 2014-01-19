@@ -39,11 +39,13 @@ void ZopfliInitCache(size_t blocksize, ZopfliLongestMatchCache* lmc) {
   for (i = 0; i < ZOPFLI_CACHE_LENGTH * blocksize * 3; i++) lmc->sublen[i] = 0;
 }
 
+#if !defined(__GNUC__) && !defined(_MSC_VER)
 void ZopfliCleanCache(ZopfliLongestMatchCache* lmc) {
   free(lmc->length);
   free(lmc->dist);
   free(lmc->sublen);
 }
+#endif
 
 #if 1 && defined(_MSC_VER) && !defined(DEBUG) && !defined(_DEBUG)
 __declspec(naked)

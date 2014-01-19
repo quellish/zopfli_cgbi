@@ -122,6 +122,8 @@ varies from file to file.
 #define ZOPFLI_UTIL_INLINE __forceinline static
 unsigned char _BitScanReverse(unsigned long * _Index, unsigned long _Mask);
 unsigned char _bittestandset(long * _Mask, long _Index);
+#else
+#define ZOPFLI_UTIL_INLINE
 #endif
 
 /*
@@ -229,23 +231,44 @@ equal than *size.
   if (!((*size) & ((*size) - 1))) {\
     /*double alloc size if it's a power of two*/\
     void** data_void = reinterpret_cast<void**>(data);\
-    *data_void = (*size) == 0 ? malloc(sizeof(**data))\
+    *data_void = (*size) == 0 ? realloc(NULL, sizeof(**data))\
                               : realloc((*data), (*size) * 2 * sizeof(**data));\
   }\
   (*data)[(*size)] = (value);\
   (*size)++;\
 }
+#define ZOPFLI_APPEND_DATA_T(T, value, data, size) {\
+  if (!((size) & ((size) - 1))) {\
+    /*double alloc size if it's a power of two*/\
+    void *temp = size == 0 ? realloc(NULL, sizeof(*(data)))\
+                           : realloc((data), (size) * 2 * sizeof(*(data)));\
+    (data) = reinterpret_cast<T*> temp;\
+  }\
+  (data)[(size)] = (value);\
+  ++(size);\
+}
 #else /* C gives problems with strict-aliasing rules for (void**) cast */
 #define ZOPFLI_APPEND_DATA(/* T */ value, /* T** */ data, /* size_t* */ size) {\
   if (!((*size) & ((*size) - 1))) {\
     /*double alloc size if it's a power of two*/\
-    (*data) = (*size) == 0 ? malloc(sizeof(**data))\
+    (*data) = (*size) == 0 ? realloc(NULL, sizeof(**data))\
                            : realloc((*data), (*size) * 2 * sizeof(**data));\
   }\
   (*data)[(*size)] = (value);\
   (*size)++;\
 }
+#define ZOPFLI_APPEND_DATA_T(T, value, data, size) {\
+  if (!((size) & ((size) - 1))) {\
+    /*double alloc size if it's a power of two*/\
+    void *temp = size == 0 ? realloc(NULL, sizeof(*(data)))\
+                           : realloc((data), (size) * 2 * sizeof(*(data)));\
+    (data) = (T*) temp;\
+  }\
+  (data)[(size)] = (value);\
+  ++(size);\
+}
 #endif
 
+#undef ZOPFLI_UTIL_INLINE
 
 #endif  /* ZOPFLI_UTIL_H_ */

@@ -163,7 +163,7 @@ static void PrintBlockSplitPoints(const unsigned short* litlens,
     for (i = 0; i < llsize; i++) {
       size_t length = dists[i] == 0 ? 1 : litlens[i];
       if (lz77splitpoints[npoints] == i) {
-        ZOPFLI_APPEND_DATA(pos, &splitpoints, &npoints);
+        ZOPFLI_APPEND_DATA_T(size_t, pos, splitpoints, npoints);
         if (npoints == nlz77points) break;
       }
       pos += length;
@@ -292,6 +292,7 @@ void ZopfliBlockSplit(const ZopfliOptions* options,
   size_t* lz77splitpoints = 0;
   size_t nlz77points = 0;
   ZopfliLZ77Store store;
+  size_t _npoints, *_splitpoints;
 
   ZopfliInitLZ77Store(&store);
 
@@ -302,9 +303,6 @@ void ZopfliBlockSplit(const ZopfliOptions* options,
   s.lmc = 0;
 #endif
 
-  *npoints = 0;
-  *splitpoints = 0;
-
   /* Unintuitively, Using a simple LZ77 method here instead of ZopfliLZ77Optimal
   results in better blocks. */
   ZopfliLZ77Greedy(&s, in, instart, inend, &store);
@@ -313,32 +311,98 @@ void ZopfliBlockSplit(const ZopfliOptions* options,
                        store.litlens, store.dists, store.size, maxblocks,
                        &lz77splitpoints, &nlz77points);
 
+  _npoints = 0;
+  _splitpoints = 0;
   /* Convert LZ77 positions to positions in the uncompressed input. */
   pos = instart;
   if (nlz77points > 0) {
     for (i = 0; i < store.size; i++) {
-      size_t length = store.dists[i] == 0 ? 1 : store.litlens[i];
-      if (lz77splitpoints[*npoints] == i) {
-        ZOPFLI_APPEND_DATA(pos, splitpoints, npoints);
-        if (*npoints == nlz77points) break;
+      if (lz77splitpoints[_npoints] == i) {
+        ZOPFLI_APPEND_DATA_T(size_t, pos, _splitpoints, _npoints);
+        if (_npoints == nlz77points) break;
       }
-      pos += length;
+      pos += store.dists[i] == 0 ? 1 : store.litlens[i];
     }
   }
+  *splitpoints = _splitpoints;
+  *npoints = _npoints;
   assert(*npoints == nlz77points);
 
   free(lz77splitpoints);
   ZopfliCleanLZ77Store(&store);
 }
 
-void ZopfliBlockSplitSimple(const unsigned char* in,
-                            size_t instart, size_t inend,
-                            size_t blocksize,
-                            size_t** splitpoints, size_t* npoints) {
-  size_t i = instart;
-  while (i < inend) {
-    ZOPFLI_APPEND_DATA(i, splitpoints, npoints);
-    i += blocksize;
-  }
-  (void)in;
+#if 0 && defined(_MSC_VER) && !defined(DEBUG) && !defined(_DEBUG)
+__declspec(naked)
+void _ZopfliBlockSplitSimple(size_t instart, size_t inend, size_t blocksize,
+                             size_t** splitpoints, size_t* npoints) {
+__asm {
+	mov ecx, [esp+4]
+	mov eax, [esp+8]
+	xor edx, edx
+	sub eax, ecx
+	jbe func_end
+	push esi
+	push edi
+	push ebx
+	mov esi, ecx
+	mov edi, [esp+12+12]
+	lea eax, [eax+edi-1]
+	div edi
+	mov ecx, [esp+12+20]
+	xor ebx, ebx
+	lea edx, [eax+ecx-1]
+	xchg eax, ebx
+	bsf edx, edx
+	test ecx, ecx
+	jz domalloc
+	dec ecx
+	mov eax, [esp+12+16]
+	bt ecx, edx
+	jc skiprealloc
+domalloc:
+	inc edx
+	xor ecx, ecx
+	bts ecx, edx
+	push ecx
+	push eax
+	call dword ptr [realloc]
+	add esp, 8
+	mov ecx, [esp+12+20]
+skiprealloc:
+loopnext:
+	mov [eax+ecx], esi
+	add esi, edi
+	lea ecx, [ecx+1]
+	add ebx, -1
+	jnz loopnext
+	pop ebx
+	pop edi
+	pop esi
+	mov [esp+16], eax
+	mov [esp+20], ecx
+func_end:
+	ret
 }
+}
+#else
+void _ZopfliBlockSplitSimple(size_t instart, size_t inend, size_t blocksize,
+                             size_t** splitpoints, size_t* npoints) {
+  size_t i = instart;
+  size_t *_splitpoints;
+  size_t _npoints;
+
+  if (i >= inend) return;
+  _splitpoints = *splitpoints;
+  _npoints = *npoints;
+
+  __asm _emit 0x05 __asm _emit 0x00 __asm _emit 0x00 __asm _emit 0x00 __asm _emit 0x00
+  do {
+    ZOPFLI_APPEND_DATA_T(size_t, i, _splitpoints, _npoints);
+    *splitpoints = _splitpoints;
+    *npoints = _npoints;
+    i += blocksize;
+  } while(i < inend);
+
+}
+#endif

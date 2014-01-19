@@ -24,6 +24,7 @@ Author: jyrki.alakuijala@gmail.com (Jyrki Alakuijala)
 #include <stdio.h>
 #include <stdlib.h>
 
+#if !defined(__GNUC__) && !defined(_MSC_VER)
 void ZopfliInitLZ77Store(ZopfliLZ77Store* store) {
   store->size = 0;
   store->litlens = 0;
@@ -34,7 +35,74 @@ void ZopfliCleanLZ77Store(ZopfliLZ77Store* store) {
   free(store->litlens);
   free(store->dists);
 }
+#endif
 
+#if defined(_MSC_VER) && !defined(DEBUG) && !defined(_DEBUG)
+__declspec(naked) void __fastcall
+ZopfliCopyLZ77Store(const ZopfliLZ77Store* s, ZopfliLZ77Store* d) {
+__asm{
+	push esi
+	mov esi, ecx
+	push edi
+	mov edi, dword ptr [free]
+	push ebx
+	mov eax, [edx]
+	mov ecx, [edx+4]
+	mov ebx, edx
+	push eax
+	push ecx
+	call edi
+	pop ecx
+	call edi
+	mov eax, [esi+8]
+	pop edx
+	lea ecx, [eax+eax]
+	push ecx
+	mov edi, dword ptr [malloc]
+	push ecx
+	call edi
+	xchg eax, edi
+	pop ecx
+	call eax
+	test edi, edi
+	jz error_exit
+	pop ecx
+	test eax, eax
+	jz error_exit
+	mov edx, [esi+8]
+	mov [ebx+4], eax
+	mov [ebx+8], edx
+	mov [ebx+0], edi /*__emit 0x89 __asm __emit 0x7B __asm __emit 0x00*/
+	test edx, edx
+	jz loopend
+	push ebp
+	shr edx, 1
+	mov ebx, [esi+4]
+	mov esi, [esi]
+	jnc loopnext
+	mov cx, [esi+4*edx]
+	mov bp, [ebx+4*edx]
+	mov [edi+4*edx], cx
+	mov [eax+4*edx], bp
+loopnext:
+	dec edx
+	mov ecx, [esi+4*edx]
+	mov ebp, [ebx+4*edx]
+	mov [edi+4*edx], ecx
+	mov [eax+4*edx], ebp
+	jnz loopnext
+	pop ebp
+loopend:
+	pop ebx
+	pop edi
+	pop esi
+	ret
+error_exit:
+	push -1
+	call dword ptr[exit]
+}
+}
+#else
 void ZopfliCopyLZ77Store(
     const ZopfliLZ77Store* source, ZopfliLZ77Store* dest) {
   size_t i;
@@ -51,6 +119,7 @@ void ZopfliCopyLZ77Store(
     dest->dists[i] = source->dists[i];
   }
 }
+#endif
 
 /*
 Appends the length and distance to the LZ77 arrays of the ZopfliLZ77Store.

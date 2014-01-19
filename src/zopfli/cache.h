@@ -42,11 +42,19 @@ typedef struct ZopfliLongestMatchCache {
   unsigned char* sublen;
 } ZopfliLongestMatchCache;
 
+#if defined(__GNUC__)
+#define ZOPFLI_CACHE_INLINE __inline static
+#elif defined(_MSC_VER)
+#define ZOPFLI_CACHE_INLINE __forceinline static
+#else
+#define ZOPFLI_CACHE_INLINE
+#endif
+
 /* Initializes the ZopfliLongestMatchCache. */
 void ZopfliInitCache(size_t blocksize, ZopfliLongestMatchCache* lmc);
 
 /* Frees up the memory of the ZopfliLongestMatchCache. */
-void ZopfliCleanCache(ZopfliLongestMatchCache* lmc);
+ZOPFLI_CACHE_INLINE void ZopfliCleanCache(ZopfliLongestMatchCache* lmc);
 
 /* Stores sublen array in the cache. */
 void ZopfliSublenToCache(const unsigned short* sublen,
@@ -61,6 +69,11 @@ void ZopfliCacheToSublen(const ZopfliLongestMatchCache* lmc,
 unsigned ZopfliMaxCachedSublen(const ZopfliLongestMatchCache* lmc,
                                size_t pos, size_t length);
 
+ZOPFLI_CACHE_INLINE void ZopfliCleanCache(ZopfliLongestMatchCache* lmc) {
+  free(lmc->length);
+  free(lmc->dist);
+  free(lmc->sublen);
+}
 #endif  /* ZOPFLI_LONGEST_MATCH_CACHE */
 
 #endif  /* ZOPFLI_CACHE_H_ */

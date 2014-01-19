@@ -45,12 +45,36 @@ typedef struct ZopfliLZ77Store {
   size_t size;
 } ZopfliLZ77Store;
 
-void ZopfliInitLZ77Store(ZopfliLZ77Store* store);
-void ZopfliCleanLZ77Store(ZopfliLZ77Store* store);
-void ZopfliCopyLZ77Store(const ZopfliLZ77Store* source, ZopfliLZ77Store* dest);
+#if defined(__GNUC__)
+#define ZOPFLI_LZ77_INLINE __inline static
+#elif defined(_MSC_VER)
+#define ZOPFLI_LZ77_INLINE __forceinline static
+#else
+#define ZOPFLI_LZ77_INLINE
+#endif
+
+#if defined(_MSC_VER) && !defined(DEBUG) && !defined(_DEBUG)
+#define ZOPFLI_LZ77_FASTCALL __fastcall
+#else
+#define ZOPFLI_LZ77_FASTCALL
+#endif
+
+ZOPFLI_LZ77_INLINE void ZopfliInitLZ77Store(ZopfliLZ77Store* store);
+ZOPFLI_LZ77_INLINE void ZopfliCleanLZ77Store(ZopfliLZ77Store* store);
+void ZOPFLI_LZ77_FASTCALL ZopfliCopyLZ77Store(const ZopfliLZ77Store* source,
+                                              ZopfliLZ77Store* dest);
 void ZopfliStoreLitLenDist(unsigned short length, unsigned short dist,
                            ZopfliLZ77Store* store);
 
+ZOPFLI_LZ77_INLINE void ZopfliInitLZ77Store(ZopfliLZ77Store* store) {
+  store->size = 0;
+  store->litlens = 0;
+  store->dists = 0;
+}
+ZOPFLI_LZ77_INLINE void ZopfliCleanLZ77Store(ZopfliLZ77Store* store) {
+  free(store->litlens);
+  free(store->dists);
+}
 /*
 Some state information for compressing a block.
 This is currently a bit under-used (with mainly only the longest match cache),
@@ -122,5 +146,7 @@ dictionary.
 void ZopfliLZ77Greedy(ZopfliBlockState* s, const unsigned char* in,
                       size_t instart, size_t inend,
                       ZopfliLZ77Store* store);
+
+#undef ZOPFLI_LZ77_INLINE
 
 #endif  /* ZOPFLI_LZ77_H_ */

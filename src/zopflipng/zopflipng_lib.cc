@@ -26,6 +26,19 @@
 #include "lodepng/lodepng_util.h"
 #include "../zopfli/deflate.h"
 
+#ifdef _MSC_VER
+#ifdef __cplusplus
+extern "C" {
+#endif
+void __stosb(unsigned char *, unsigned char, size_t);
+#ifdef __cplusplus
+}
+#endif
+#else
+static void __stosb(unsigned char *dst, unsigned char n, size_t i)
+{memset(dst, n, i * sizeof(unsigned char));}
+#endif
+
 ZopfliPNGOptions::ZopfliPNGOptions()
   : lossy_transparent(false)
   , lossy_8bit(false)
@@ -233,6 +246,7 @@ unsigned AutoChooseFilterStrategy(const std::vector<unsigned char>& image,
   std::vector<unsigned char> out;
   size_t bestsize = 0;
   int bestfilter = 0;
+  unsigned error = 0;
 
   // A large window size should still be used to do the quick compression to
   // try out filter strategies: which filter strategy is the best depends
@@ -242,20 +256,21 @@ unsigned AutoChooseFilterStrategy(const std::vector<unsigned char>& image,
 
   for (int i = 0; i < numstrategies; i++) {
     out.clear();
-    unsigned error = TryOptimize(image, w, h, inputstate, bit16, origfile,
+    error = TryOptimize(image, w, h, inputstate, bit16, origfile,
                                  strategies[i], false, windowsize, 0, &out);
-    if (error) return error;
+    if (error) break;
     if (bestsize == 0 || out.size() < bestsize) {
       bestsize = out.size();
       bestfilter = i;
     }
   }
 
-  for (int i = 0; i < numstrategies; i++) {
-    enable[i] = (i == bestfilter);
+  if (!error) {
+    __stosb((unsigned char *)enable, 0, sizeof(bool) * numstrategies);
+    enable[bestfilter] = 1;
   }
 
-  return 0;  /* OK */
+  return error;
 }
 
 // Keeps chunks with given names from the original png by literally copying them
