@@ -521,9 +521,10 @@ static const unsigned LENGTHEXTRA[29]
       4,  4,  4,   4,   5,   5,   5,   5,   0};
 
 /*the base backwards distances (the bits of distance codes appear after length codes and use their own huffman tree)*/
-static const unsigned DISTANCEBASE[30]
+/*static const unsigned DISTANCEBASE[30]
   = {1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513,
-     769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
+     769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};*/
+extern "C" const unsigned int DistSymbols[];
 
 /*the extra bits of backwards distances (added to base)*/
 static const unsigned DISTANCEEXTRA[30]
@@ -1261,7 +1262,7 @@ static unsigned inflateHuffmanBlock(ucvector* out, const unsigned char* in, size
         else error = 18; /*error: invalid distance code (30-31 are never used)*/
         break;
       }
-      distance = DISTANCEBASE[code_d];
+      distance = DistSymbols[code_d];
 
       /*part 4: get extra bits from distance*/
       numextrabits_d = DISTANCEEXTRA[code_d];

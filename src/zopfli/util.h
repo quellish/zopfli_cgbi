@@ -164,6 +164,8 @@ ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBitsValue(int l) {
   return ZopfliGetLengthExtraBitsValueTable[l];
 }
 
+extern const unsigned int DistSymbols[];
+
 ZOPFLI_UTIL_INLINE int ZopfliGetDistSymbol(int d) {
   int dist = d - 1;
   int index;

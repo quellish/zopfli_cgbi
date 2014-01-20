@@ -92,6 +92,17 @@ const unsigned char ZopfliGetLengthExtraBitsValueTable[259] = {
   16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 0
 };
 
+/*
+Table of distances that have a different distance symbol in the deflate
+specification. Each value is the first distance that has a new symbol. Only
+different symbols affect the cost model so only these need to be checked.
+See RFC 1951 section 3.2.5. Compressed blocks (length and distance codes).
+*/
+const unsigned int DistSymbols[30] = {
+  1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513,
+  769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577
+};
+
 #if defined(__GUNC__) || defined(_MSC_VER)
 #else
 int ZopfliGetDistExtraBits(int dist) {

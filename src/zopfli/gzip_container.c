@@ -22,6 +22,7 @@ Author: jyrki.alakuijala@gmail.com (Jyrki Alakuijala)
 
 #include <stdio.h>
 
+#include "crc.h"
 #include "deflate.h"
 
 /*
