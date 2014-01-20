@@ -54,17 +54,17 @@ static void CopyStats(SymbolStats* source, SymbolStats* dest) {
 }
 
 /* Adds the bit lengths. */
-static void AddWeighedStatFreqs(const SymbolStats* stats1, double w1,
-                                const SymbolStats* stats2, double w2,
-                                SymbolStats* result) {
+static void __AddWeighedStatFreqs(const SymbolStats* stats1,
+                                  const SymbolStats* stats2,
+                                  SymbolStats* result) {
   size_t i;
   for (i = 0; i < 288; i++) {
     result->litlens[i] =
-        (size_t) (stats1->litlens[i] * w1 + stats2->litlens[i] * w2);
+        (size_t) (stats1->litlens[i] + stats2->litlens[i] / 2);
   }
   for (i = 0; i < 32; i++) {
     result->dists[i] =
-        (size_t) (stats1->dists[i] * w1 + stats2->dists[i] * w2);
+        (size_t) (stats1->dists[i] + stats2->dists[i] / 2);
   }
   result->litlens[256] = 1;  /* End symbol. */
 }
@@ -157,16 +157,6 @@ static double GetCostModelMinCost(CostModelFun* costmodel, void* costcontext) {
   int bestlength = 0; /* length that has lowest cost in the cost model */
   int bestdist = 0; /* distance that has lowest cost in the cost model */
   int i;
-  /*
-  Table of distances that have a different distance symbol in the deflate
-  specification. Each value is the first distance that has a new symbol. Only
-  different symbols affect the cost model so only these need to be checked.
-  See RFC 1951 section 3.2.5. Compressed blocks (length and distance codes).
-  */
-  static const int dsymbols[30] = {
-    1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513,
-    769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577
-  };
 
   mincost = ZOPFLI_LARGE_FLOAT;
   for (i = 3; i < 259; i++) {
@@ -179,9 +169,9 @@ static double GetCostModelMinCost(CostModelFun* costmodel, void* costcontext) {
 
   mincost = ZOPFLI_LARGE_FLOAT;
   for (i = 0; i < 30; i++) {
-    double c = costmodel(3, dsymbols[i], costcontext);
+    double c = costmodel(3, DistSymbols[i], costcontext);
     if (c < mincost) {
-      bestdist = dsymbols[i];
+      bestdist = DistSymbols[i];
       mincost = c;
     }
   }
@@ -508,7 +498,7 @@ void ZopfliLZ77Optimal(ZopfliBlockState *s,
       /* This makes it converge slower but better. Do it only once the
       randomness kicks in so that if the user does few iterations, it gives a
       better result sooner. */
-      AddWeighedStatFreqs(&stats, 1.0, &laststats, 0.5, &stats);
+      __AddWeighedStatFreqs(&stats, &laststats, &stats);
       CalculateStatistics(&stats);
     }
     if (i > 5 && cost == lastcost) {

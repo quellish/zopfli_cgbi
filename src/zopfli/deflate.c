@@ -310,7 +310,7 @@ static size_t CalculateBlockSymbolSize(const unsigned* ll_lengths,
   return result;
 }
 
-double ZopfliCalculateBlockSize(const unsigned short* litlens,
+size_t ZopfliCalculateBlockSize(const unsigned short* litlens,
                                 const unsigned short* dists,
                                 size_t lstart, size_t lend, int btype) {
   size_t ll_counts[288];
@@ -319,7 +319,7 @@ double ZopfliCalculateBlockSize(const unsigned short* litlens,
   unsigned ll_lengths[288];
   unsigned d_lengths[32];
 
-  double result = 3; /*bfinal and btype bits*/
+  size_t result = 3; /*bfinal and btype bits*/
 
   assert(btype == 1 || btype == 2); /* This is not for uncompressed blocks. */
 
@@ -335,7 +335,6 @@ double ZopfliCalculateBlockSize(const unsigned short* litlens,
 
   result += CalculateBlockSymbolSize(
       ll_lengths, d_lengths, litlens, dists, lstart, lend);
-
   return result;
 }
 
@@ -447,7 +446,7 @@ static void DeflateDynamicBlock(const ZopfliOptions* options, int final,
   /* For small block, encoding with fixed tree can be smaller. For large block,
   don't bother doing this expensive test, dynamic tree will be better.*/
   if (store.size < 1000) {
-    double dyncost, fixedcost;
+    size_t dyncost, fixedcost;
     ZopfliLZ77Store fixedstore;
     ZopfliInitLZ77Store(&fixedstore);
     ZopfliLZ77OptimalFixed(&s, in, instart, inend, &fixedstore);
@@ -708,9 +707,6 @@ void ZopfliDeflate(const ZopfliOptions* options, int btype, int final,
   }
 #endif
   if (options->verbose) {
-    fprintf(stderr,
-            "Original Size: %d, Deflate: %d, Compression: %f%% Removed\n",
-            (int)insize, (int)*outsize,
-            100.0 * (double)(insize - *outsize) / (double)insize);
+    ZopfliPrintSizeVerbose(insize, *outsize, "Deflate");
   }
 }

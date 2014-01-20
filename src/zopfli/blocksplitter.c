@@ -34,20 +34,20 @@ The "f" for the FindMinimum function below.
 i: the current parameter of f(i)
 context: for your implementation
 */
-typedef double FindMinimumFun(size_t i, void* context);
+typedef size_t FindMinimumFun(size_t i, void* context);
 
 /*
 Finds minimum of function f(i) where is is of type size_t, f(i) is of type
-double, i is in range start-end (excluding end).
+size_t, i is in range start-end (excluding end).
 */
 static size_t FindMinimum(FindMinimumFun f, void* context,
                           size_t start, size_t end) {
   if (end - start < 1024) {
-    double best = ZOPFLI_LARGE_FLOAT;
+    size_t best = -1;
     size_t result = start;
     size_t i;
     for (i = start; i < end; i++) {
-      double v = f(i, context);
+      size_t v = f(i, context);
       if (v < best) {
         best = v;
         result = i;
@@ -59,10 +59,10 @@ static size_t FindMinimum(FindMinimumFun f, void* context,
 #define NUM 9  /* Good value: 9. */
     size_t i;
     size_t p[NUM];
-    double vp[NUM];
+    size_t vp[NUM];
     size_t besti;
-    double best;
-    double lastbest = ZOPFLI_LARGE_FLOAT;
+    size_t best;
+    size_t lastbest = -1;
     size_t pos = start;
 
     for (;;) {
@@ -103,7 +103,7 @@ dists: ll77 distances
 lstart: start of block
 lend: end of block (not inclusive)
 */
-static double EstimateCost(const unsigned short* litlens,
+static size_t EstimateCost(const unsigned short* litlens,
                            const unsigned short* dists,
                            size_t lstart, size_t lend) {
   return ZopfliCalculateBlockSize(litlens, dists, lstart, lend, 2);
@@ -123,7 +123,7 @@ Gets the cost which is the sum of the cost of the left and the right section
 of the data.
 type: FindMinimumFun
 */
-static double SplitCost(size_t i, void* context) {
+static size_t SplitCost(size_t i, void* context) {
   SplitCostContext* c = (SplitCostContext*)context;
   return EstimateCost(c->litlens, c->dists, c->start, i) +
       EstimateCost(c->litlens, c->dists, i, c->end);
@@ -239,7 +239,7 @@ void ZopfliBlockSplitLZ77(const ZopfliOptions* options,
   size_t llpos = 0;
   size_t numblocks = 1;
   unsigned char* done;
-  double splitcost, origcost;
+  size_t splitcost, origcost;
 
   if (llsize < 10) return;  /* This code fails on tiny files. */
 

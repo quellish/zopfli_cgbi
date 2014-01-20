@@ -66,8 +66,27 @@ typedef struct ZopfliOptions {
   int blocksplittingmax;
 } ZopfliOptions;
 
+#if defined(__GNUC__)
+#define ZOPFLI_INLINE __inline static
+#elif defined(_MSC_VER)
+#define ZOPFLI_INLINE __forceinline static
+#else
+#define ZOPFLI_INLINE
+#endif
+
 /* Initializes options with default values. */
-void ZopfliInitOptions(ZopfliOptions* options);
+ZOPFLI_INLINE void ZopfliInitOptions(ZopfliOptions* options);
+
+#if defined(__GNUC__) || defined(_MSC_VER)
+ZOPFLI_INLINE void ZopfliInitOptions(ZopfliOptions* options) {
+  options->verbose = 0;
+  options->verbose_more = 0;
+  options->numiterations = 15;
+  options->blocksplitting = 1;
+  options->blocksplittinglast = 0;
+  options->blocksplittingmax = 15;
+}
+#endif
 
 /* Output format */
 typedef enum {

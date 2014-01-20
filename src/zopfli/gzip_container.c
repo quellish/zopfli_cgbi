@@ -63,9 +63,6 @@ void ZopfliGzipCompress(const ZopfliOptions* options,
   ZOPFLI_APPEND_DATA((insize >> 24) % 256, out, outsize);
 
   if (options->verbose) {
-    fprintf(stderr,
-            "Original Size: %d, Gzip: %d, Compression: %f%% Removed\n",
-            (int)insize, (int)*outsize,
-            100.0 * (double)(insize - *outsize) / (double)insize);
+    ZopfliPrintSizeVerbose(insize, *outsize, "Gzip");
   }
 }

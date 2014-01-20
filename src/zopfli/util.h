@@ -217,6 +217,8 @@ ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBitsValue(int d) {
 }
 #endif
 
+int ZopfliPrintSizeVerbose(size_t insize, size_t outsize, const char *name);
+
 /*
 Appends value to dynamically allocated memory, doubling its allocation size
 whenever needed.

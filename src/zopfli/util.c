@@ -192,7 +192,6 @@ int ZopfliGetLengthExtraBits(int l) {
 int ZopfliGetLengthExtraBitsValue(int l) {
   return ZopfliGetLengthExtraBitsValueTable[l];
 }
-#endif
 
 void ZopfliInitOptions(ZopfliOptions* options) {
   options->verbose = 0;
@@ -201,4 +200,11 @@ void ZopfliInitOptions(ZopfliOptions* options) {
   options->blocksplitting = 1;
   options->blocksplittinglast = 0;
   options->blocksplittingmax = 15;
+}
+#endif
+
+int ZopfliPrintSizeVerbose(size_t insize, size_t outsize, const char *name) {
+  return fprintf(stderr,
+                 "Original Size: %u, %s: %u, Compression: %f%% Removed\n",
+                 insize, name, outsize, 100.0 * (insize - outsize) / insize);
 }
