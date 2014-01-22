@@ -484,9 +484,9 @@ void ZopfliLZ77Optimal(ZopfliBlockState *s,
   ZopfliLZ77Store currentstore;
   SymbolStats stats, beststats, laststats;
   int i;
-  double cost;
-  double bestcost = ZOPFLI_LARGE_FLOAT;
-  double lastcost = 0;
+  size_t cost;
+  size_t bestcost = -1;
+  size_t lastcost = 0;
   /* Try randomizing the costs a bit once the size stabilizes. */
   RanState ran_state;
   int lastrandomstep = -1;
