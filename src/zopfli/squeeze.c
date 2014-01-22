@@ -45,28 +45,19 @@ static void InitStats(SymbolStats* stats) {
 }
 
 static void CopyStats(SymbolStats* source, SymbolStats* dest) {
-  memcpy(dest->litlens, source->litlens, 288 * sizeof(dest->litlens[0]));
-  memcpy(dest->dists, source->dists, 32 * sizeof(dest->dists[0]));
-
-  memcpy(dest->ll_symbols, source->ll_symbols,
-         288 * sizeof(dest->ll_symbols[0]));
-  memcpy(dest->d_symbols, source->d_symbols, 32 * sizeof(dest->d_symbols[0]));
+  memcpy(dest, source, sizeof(*dest));
 }
 
 /* Adds the bit lengths. */
-static void __AddWeighedStatFreqs(const SymbolStats* stats1,
-                                  const SymbolStats* stats2,
-                                  SymbolStats* result) {
-  size_t i;
-  for (i = 0; i < 288; i++) {
-    result->litlens[i] =
-        (size_t) (stats1->litlens[i] + stats2->litlens[i] / 2);
+static void __AddWeighedStatFreqs(SymbolStats* stats1,
+                                  const SymbolStats* stats2) {
+  int i;
+  size_t *src1 = stats1->litlens;
+  const size_t *src2 = stats2->litlens;
+  for (i = 0; i < (288 + 32) /* litlens & dists */ ; i++) {
+    src1[i] = (size_t) (src1[i] + src2[i] / 2);
   }
-  for (i = 0; i < 32; i++) {
-    result->dists[i] =
-        (size_t) (stats1->dists[i] + stats2->dists[i] / 2);
-  }
-  result->litlens[256] = 1;  /* End symbol. */
+  src1[256] = 1;  /* End symbol. */
 }
 
 typedef struct RanState {
@@ -93,49 +84,92 @@ static void RandomizeFreqs(RanState* state, size_t* freqs, int n) {
 }
 
 static void RandomizeStatFreqs(RanState* state, SymbolStats* stats) {
-  RandomizeFreqs(state, stats->litlens, 288);
-  RandomizeFreqs(state, stats->dists, 32);
+  RandomizeFreqs(state, stats->litlens, 288+32);
   stats->litlens[256] = 1;  /* End symbol. */
 }
 
 static void ClearStatFreqs(SymbolStats* stats) {
   size_t i;
-  for (i = 0; i < 288; i++) stats->litlens[i] = 0;
-  for (i = 0; i < 32; i++) stats->dists[i] = 0;
+  for (i = 0; i < 288+32; i++) stats->litlens[i] = 0;
 }
+
+#if defined(_MSC_VER)
+#define ZOPFLI_SQUEEZE_FASTCALL __fastcall
+#else
+#define ZOPFLI_SQUEEZE_FASTCALL
+#endif
 
 /*
 Function that calculates a cost based on a model for the given LZ77 symbol.
 litlen: means literal symbol if dist is 0, length otherwise.
 */
-typedef double CostModelFun(unsigned litlen, unsigned dist, void* context);
+typedef double ZOPFLI_SQUEEZE_FASTCALL
+CostModelFun(unsigned litlen, unsigned dist, void* context);
 
 /*
 Cost model which should exactly match fixed tree.
 type: CostModelFun
 */
-static double GetCostFixed(unsigned litlen, unsigned dist, void* unused) {
+#if defined(_MSC_VER) && !defined(DEBUG) && !defined(_DEBUG)
+__declspec(naked) static double ZOPFLI_SQUEEZE_FASTCALL
+GetCostFixed(unsigned litlen, unsigned dist, void* unused) {
+  extern const unsigned short ZopfliGetLengthSymbolTable[];
+  extern const unsigned char ZopfliGetLengthExtraBitsTable[];
+__asm {
+	test edx, edx
+	jnz distnotzero
+	cmp ecx, 144
+	sbb edx, -9 /* edx = 0 + 9 - litlen<144?1:0 */
+	mov [esp+4], edx
+	fild dword ptr [esp+4]
+	ret 4
+	/* alignment */
+	__emit 'y' __asm __emit 'u' __asm __emit 'M' __asm __emit 'e'
+	__asm __emit 'Y' __asm __emit 'a' __asm __emit 'o' __asm nop
+distnotzero:
+	cmp edx, 5
+	mov eax, 3
+	cmovb edx, eax /* so that bsr makes result = 1 */
+	cmp word ptr ZopfliGetLengthSymbolTable[2*ecx], 280
+	movzx eax, byte ptr ZopfliGetLengthExtraBitsTable[ecx]
+	sbb eax, -(7+5)
+	dec edx
+	bsr edx, edx
+	/* eax = lbits + costs - 1; edx = dbits + 1; */
+	add eax, edx
+	mov [esp+4], eax
+	fild dword ptr [esp+4]
+	ret 4
+}
+}
+#else
+static double ZOPFLI_SQUEEZE_FASTCALL
+GetCostFixed(unsigned litlen, unsigned dist, void* unused) {
+  int ret;
   (void)unused;
   if (dist == 0) {
-    if (litlen <= 143) return 8;
-    else return 9;
+    if (litlen < 144) ret = 8;
+    else ret = 9;
   } else {
     int dbits = ZopfliGetDistExtraBits(dist);
     int lbits = ZopfliGetLengthExtraBits(litlen);
     int lsym = ZopfliGetLengthSymbol(litlen);
-    double cost = 0;
-    if (lsym <= 279) cost += 7;
-    else cost += 8;
-    cost += 5;  /* Every dist symbol has length 5. */
-    return cost + dbits + lbits;
+    int cost;
+    if (lsym < 280) cost = 7 + 5;
+	else cost = 8 + 5;
+    /* Every dist symbol has length 5. */
+    ret = cost + dbits + lbits;
   }
+  return ret;
 }
+#endif
 
 /*
 Cost model based on symbol statistics.
 type: CostModelFun
 */
-static double GetCostStat(unsigned litlen, unsigned dist, void* context) {
+static double ZOPFLI_SQUEEZE_FASTCALL
+GetCostStat(unsigned litlen, unsigned dist, void* context) {
   SymbolStats* stats = (SymbolStats*)context;
   if (dist == 0) {
     return stats->ll_symbols[litlen];
@@ -144,7 +178,8 @@ static double GetCostStat(unsigned litlen, unsigned dist, void* context) {
     int lbits = ZopfliGetLengthExtraBits(litlen);
     int dsym = ZopfliGetDistSymbol(dist);
     int dbits = ZopfliGetDistExtraBits(dist);
-    return stats->ll_symbols[lsym] + lbits + stats->d_symbols[dsym] + dbits;
+    /*return stats->ll_symbols[lsym] + lbits + stats->d_symbols[dsym] + dbits;*/
+	return stats->ll_symbols[lsym] + stats->d_symbols[dsym] + (lbits + dbits);
   }
 }
 
@@ -498,7 +533,7 @@ void ZopfliLZ77Optimal(ZopfliBlockState *s,
       /* This makes it converge slower but better. Do it only once the
       randomness kicks in so that if the user does few iterations, it gives a
       better result sooner. */
-      __AddWeighedStatFreqs(&stats, &laststats, &stats);
+      __AddWeighedStatFreqs(&stats, &laststats);
       CalculateStatistics(&stats);
     }
     if (i > 5 && cost == lastcost) {
