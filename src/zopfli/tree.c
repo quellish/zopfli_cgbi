@@ -68,6 +68,53 @@ void ZopfliLengthsToSymbols(const unsigned* lengths, size_t n, unsigned maxbits,
   free(next_code);
 }
 
+#if defined(_MSC_VER) && !defined(DEBUG) && !defined(_DEBUG)
+__declspec(naked) void __fastcall
+_ZopfliCalculateEntropy(size_t n_1, const size_t* count, double* bitlengths) {
+__asm{
+	push esi
+	xor esi, esi
+	mov eax, ecx
+loopsum: /* unroll the loop to 8x, we know n % 8 == 0 */
+	add esi, [edx+4*ecx]
+	add esi, [edx+4*ecx-4]
+	add esi, [edx+4*ecx-8]
+	add esi, [edx+4*ecx-12]
+	add esi, [edx+4*ecx-16]
+	add esi, [edx+4*ecx-20]
+	add esi, [edx+4*ecx-24]
+	add esi, [edx+4*ecx-28]
+	sub ecx, 8
+	jnb loopsum
+	inc eax
+	test esi, esi
+	mov ecx, [esp+8]
+	cmovz esi, eax
+	fld1
+	mov [esp+8], esi
+	fild dword ptr [esp+8]
+	fyl2x
+	dec eax
+	pop esi
+loopout:
+	cmp dword ptr [edx+4*eax], 0
+	fld st(0)
+	jz countiiszero
+	fld1
+	fild dword ptr [edx+4*eax]
+	fyl2x
+	fsubp st(1), st(0)
+	/* The float is always in FPU stack (as long double),
+	   thus there is no possiblity that the difference is near zero(epsilon) */
+countiiszero:
+	fstp qword ptr [ecx+8*eax]
+	sub eax, 1
+	jnb loopout
+	ffreep st(0)
+	ret 4
+}
+}
+#else
 void ZopfliCalculateEntropy(const size_t* count, size_t n, double* bitlengths) {
   static const double kInvLog2 = 1.4426950408889;  /* 1.0 / log(2.0) */
   unsigned sum = 0;
@@ -92,6 +139,7 @@ void ZopfliCalculateEntropy(const size_t* count, size_t n, double* bitlengths) {
     assert(bitlengths[i] >= 0);
   }
 }
+#endif
 
 void ZopfliCalculateBitLengths(const size_t* count, size_t n, int maxbits,
                                unsigned* bitlengths) {
