@@ -23,7 +23,6 @@ Author: jyrki.alakuijala@gmail.com (Jyrki Alakuijala)
 #include <math.h>
 #include <stdio.h>
 
-#include "ftol_magic.h"
 #include "blocksplitter.h"
 #include "deflate.h"
 #include "tree.h"
@@ -551,10 +550,7 @@ void ZopfliLZ77Optimal(ZopfliBlockState *s,
     cost = ZopfliCalculateBlockSize(currentstore.litlens, currentstore.dists,
                                     0, currentstore.size, 2);
     if (s->options->verbose_more || (s->options->verbose && cost < bestcost)) {
-      ftol_magic cost2;
-	  ftol_magic_setdouble(cost2, cost);
-	  ftol_magic_convert(cost2);
-      fprintf(stderr, "Iteration %d: %d bit\n", i, ftol_magic_getlong(cost2));
+      fprintf(stderr, "Iteration %d: %u bit\n", i, cost);
     }
     if (cost < bestcost) {
       /* Copy to the output store. */

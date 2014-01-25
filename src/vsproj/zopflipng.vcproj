@@ -232,10 +232,6 @@
 				>
 			</File>
 			<File
-				RelativePath="..\zopfli\ftol_magic.h"
-				>
-			</File>
-			<File
 				RelativePath="..\zopfli\gzip_container.c"
 				>
 			</File>
