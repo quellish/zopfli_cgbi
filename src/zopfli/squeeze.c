@@ -601,8 +601,10 @@ void ZopfliLZ77OptimalFixed(ZopfliBlockState *s,
 
   /* Shortest path for fixed tree This one should give the shortest possible
   result for fixed tree, no repeated runs are needed since the tree is known. */
-  LZ77OptimalRun(s, in, instart, inend, &path, &pathsize,
-                 length_array, GetCostFixed, 0, store);
+  /* manually inline LZ77OptimalRun because path == pathsize == 0 */
+  GetBestLengths(s, in, instart, inend, GetCostFixed, 0, length_array);
+  TraceBackwards(inend - instart, length_array, &path, &pathsize);
+  FollowPath(s, in, instart, inend, path, pathsize, store);
 
   free(length_array);
   free(path);
