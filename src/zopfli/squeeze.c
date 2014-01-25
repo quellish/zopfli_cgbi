@@ -299,22 +299,27 @@ static double GetBestLengths(ZopfliBlockState *s,
         length_array[j + 1] = 1;
       }
     }
+
+    do {
+    double mincostj = costs[j] + mincost;
     /* Lengths. */
     for (k = 3; k <= leng && i + k <= inend; k++) {
-      double newCost;
+      double newCost, oldCost;
 
+      oldCost = costs[j+k];
       /* Calling the cost model is expensive, avoid this if we are already at
       the minimum possible cost that it can return. */
-     if (costs[j + k] - costs[j] <= mincost) continue;
+     if (oldCost < mincostj) continue;
 
       newCost = costs[j] + costmodel(k, sublen[k], costcontext);
       assert(newCost >= 0);
-      if (newCost < costs[j + k]) {
+      if (newCost < oldCost) {
         assert(k <= ZOPFLI_MAX_MATCH);
         costs[j + k] = newCost;
         length_array[j + k] = k;
       }
     }
+    } while (0);
   }
 
   assert(costs[blocksize] >= 0);
