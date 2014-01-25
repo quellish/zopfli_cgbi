@@ -106,10 +106,6 @@ litlen: means literal symbol if dist is 0, length otherwise.
 typedef double ZOPFLI_SQUEEZE_FASTCALL
 CostModelFun(unsigned litlen, unsigned dist, void* context);
 
-/*
-Cost model which should exactly match fixed tree.
-type: CostModelFun
-*/
 #if defined(_MSC_VER) && !defined(DEBUG) && !defined(_DEBUG)
 __declspec(naked) static double ZOPFLI_SQUEEZE_FASTCALL
 GetCostFixed(unsigned litlen, unsigned dist, void* unused) {
@@ -142,7 +138,42 @@ distnotzero:
 	ret 4
 }
 }
+__declspec(naked) static double ZOPFLI_SQUEEZE_FASTCALL
+GetCostStat(unsigned litlen, unsigned dist, void* context) {
+  extern const unsigned short ZopfliGetLengthSymbolTable[];
+  extern const unsigned char ZopfliGetLengthExtraBitsTable[];
+__asm{
+	mov eax, [esp+4]
+	test edx, edx
+	jnz distnotzero
+	fld qword ptr [eax+1280+8*ecx]
+	ret 4
+distnotzero:
+	dec edx
+	push ecx
+	xor ecx, ecx
+	cmp edx, 4
+	jb distdone
+	bsr ecx, edx
+	dec cl
+	shr edx, cl
+	lea edx, [edx+2*ecx]
+distdone:
+	fld qword ptr [eax+3584+8*edx]
+	pop edx
+	add cl, ZopfliGetLengthExtraBitsTable[edx]
+	movzx edx, word ptr [ZopfliGetLengthSymbolTable+2*edx]
+	mov [esp+4], ecx
+	fadd qword ptr [eax+1280+8*edx]
+	fiadd dword ptr [esp+4]
+	ret 4
+}
+}
 #else
+/*
+Cost model which should exactly match fixed tree.
+type: CostModelFun
+*/
 static double ZOPFLI_SQUEEZE_FASTCALL
 GetCostFixed(unsigned litlen, unsigned dist, void* unused) {
   int ret;
@@ -162,7 +193,6 @@ GetCostFixed(unsigned litlen, unsigned dist, void* unused) {
   }
   return ret;
 }
-#endif
 
 /*
 Cost model based on symbol statistics.
@@ -182,6 +212,7 @@ GetCostStat(unsigned litlen, unsigned dist, void* context) {
 	return stats->ll_symbols[lsym] + stats->d_symbols[dsym] + (lbits + dbits);
   }
 }
+#endif
 
 /*
 Finds the minimum possible cost this cost model can return for valid length and
