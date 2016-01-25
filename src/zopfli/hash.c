@@ -26,42 +26,40 @@ Author: jyrki.alakuijala@gmail.com (Jyrki Alakuijala)
 #define HASH_SHIFT 5
 #define HASH_MASK 32767
 
-#ifdef _MSC_VER
-void __stosd(unsigned long *, unsigned long, size_t);
-#else
-static void __stosd(unsigned long *dst, unsigned long n, size_t i)
-{memset(dst, n, i * sizeof(unsigned long));}
-#endif
 void ZopfliInitHash(size_t window_size, ZopfliHash* h) {
   size_t i;
-  unsigned long *pul;
-  unsigned short *pus;
 
   h->val = 0;
-  h->head = (int*)pul = (unsigned long*)malloc(sizeof(*h->head) * 65536);
-  __stosd(pul, -1, 65536);  /* -1 indicates no head so far. */
-  h->prev = pus = (unsigned short*)malloc(sizeof(*h->prev) * window_size);
-  for (i = 0; i < window_size; i++) {
-    pus[i] = i;  /* If prev[j] == j, then prev[j] is uninitialized. */
+  h->head = (int*)malloc(sizeof(*h->head) * 65536);
+  h->prev = (unsigned short*)malloc(sizeof(*h->prev) * window_size);
+  h->hashval = (int*)malloc(sizeof(*h->hashval) * window_size);
+  for (i = 0; i < 65536; i++) {
+    h->head[i] = -1;  /* -1 indicates no head so far. */
   }
-  h->hashval = (int*)pul = (unsigned long*)malloc(sizeof(*h->hashval) * window_size);
-  __stosd(pul, -1, window_size);  /* -1 indicates no head so far. */
+  for (i = 0; i < window_size; i++) {
+    h->prev[i] = i;  /* If prev[j] == j, then prev[j] is uninitialized. */
+    h->hashval[i] = -1;
+  }
 
 #ifdef ZOPFLI_HASH_SAME
-  h->same = pus = (unsigned short*)malloc(sizeof(*h->same) * window_size);
-  __stosd(pus, 0, window_size/2); /* assumes window_size % 2 == 0 */
+  h->same = (unsigned short*)malloc(sizeof(*h->same) * window_size);
+  for (i = 0; i < window_size; i++) {
+    h->same[i] = 0;
+  }
 #endif
 
 #ifdef ZOPFLI_HASH_SAME_HASH
   h->val2 = 0;
-  h->head2 = (int*)pul = (unsigned long*)malloc(sizeof(*h->head) * 65536);
-  __stosd(pul, -1, 65536);
-  h->prev2 = pus = (unsigned short*)malloc(sizeof(*h->prev) * window_size);
-  for (i = 0; i < window_size; i++) {
-    pus[i] = i;  /* If prev[j] == j, then prev[j] is uninitialized. */
+  h->head2 = (int*)malloc(sizeof(*h->head2) * 65536);
+  h->prev2 = (unsigned short*)malloc(sizeof(*h->prev2) * window_size);
+  h->hashval2 = (int*)malloc(sizeof(*h->hashval2) * window_size);
+  for (i = 0; i < 65536; i++) {
+    h->head2[i] = -1;
   }
-  h->hashval2 = (int*)pul = (unsigned long*)malloc(sizeof(*h->hashval) * window_size);
-  __stosd(pul, -1, window_size);  /* -1 indicates no head so far. */
+  for (i = 0; i < window_size; i++) {
+    h->prev2[i] = i;
+    h->hashval2[i] = -1;
+  }
 #endif
 }
 
@@ -131,7 +129,6 @@ void ZopfliUpdateHash(const unsigned char* array, size_t pos, size_t end,
 
 void ZopfliWarmupHash(const unsigned char* array, size_t pos, size_t end,
                 ZopfliHash* h) {
-  (void)end;
   UpdateHashValue(h, array[pos + 0]);
-  UpdateHashValue(h, array[pos + 1]);
+  if (pos + 1 < end) UpdateHashValue(h, array[pos + 1]);
 }

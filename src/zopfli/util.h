@@ -32,6 +32,10 @@ basic deflate specification values and generic program options.
 #define ZOPFLI_MAX_MATCH 258
 #define ZOPFLI_MIN_MATCH 3
 
+/* Number of distinct literal/length and distance symbols in DEFLATE */
+#define ZOPFLI_NUM_LL 288
+#define ZOPFLI_NUM_D 32
+
 /*
 The window size for deflate. Must be a power of two. This should be 32768, the
 maximum possible by the deflate spec. Anything less hurts compression more than
@@ -116,108 +120,32 @@ varies from file to file.
 */
 #define ZOPFLI_LAZY_MATCHING
 
-#if defined(__GNUC__)
-#define ZOPFLI_UTIL_INLINE __inline static
-#elif defined(_MSC_VER)
-#define ZOPFLI_UTIL_INLINE __forceinline static
-unsigned char _BitScanReverse(unsigned long * _Index, unsigned long _Mask);
-unsigned char _bittestandset(long * _Mask, long _Index);
-#else
-#define ZOPFLI_UTIL_INLINE
-#endif
-
 /*
 Gets the symbol for the given length, cfr. the DEFLATE spec.
 Returns the symbol in the range [257-285] (inclusive)
 */
-ZOPFLI_UTIL_INLINE int ZopfliGetLengthSymbol(int l);
+int ZopfliGetLengthSymbol(int l);
 
 /* Gets the amount of extra bits for the given length, cfr. the DEFLATE spec. */
-ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBits(int l);
+int ZopfliGetLengthExtraBits(int l);
 
 /* Gets value of the extra bits for the given length, cfr. the DEFLATE spec. */
-ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBitsValue(int l);
+int ZopfliGetLengthExtraBitsValue(int l);
 
 /* Gets the symbol for the given dist, cfr. the DEFLATE spec. */
-ZOPFLI_UTIL_INLINE int ZopfliGetDistSymbol(int dist);
+int ZopfliGetDistSymbol(int dist);
 
 /* Gets the amount of extra bits for the given dist, cfr. the DEFLATE spec. */
-ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBits(int dist);
+int ZopfliGetDistExtraBits(int dist);
 
 /* Gets value of the extra bits for the given dist, cfr. the DEFLATE spec. */
-ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBitsValue(int dist);
+int ZopfliGetDistExtraBitsValue(int dist);
 
-/* inline the functions declared above */
-#if defined(__GUNC__) || defined(_MSC_VER)
-ZOPFLI_UTIL_INLINE int ZopfliGetLengthSymbol(int l) {
-  extern const unsigned short ZopfliGetLengthSymbolTable[];
-  return ZopfliGetLengthSymbolTable[l];
-}
+/* Gets the amount of extra bits for the given length symbol. */
+int ZopfliGetLengthSymbolExtraBits(int s);
 
-ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBits(int l) {
-  extern const unsigned char ZopfliGetLengthExtraBitsTable[];
-  return ZopfliGetLengthExtraBitsTable[l];
-}
-
-ZOPFLI_UTIL_INLINE int ZopfliGetLengthExtraBitsValue(int l) {
-  extern const unsigned char ZopfliGetLengthExtraBitsValueTable[];
-  return ZopfliGetLengthExtraBitsValueTable[l];
-}
-
-extern const unsigned int DistSymbols[];
-
-ZOPFLI_UTIL_INLINE int ZopfliGetDistSymbol(int d) {
-  int dist = d - 1;
-  int index;
-  if (dist > 4) {
-#if defined(__GUNC__)
-    index = 31 - __builtin_clz(dist) - 1;
-#else
-    _BitScanReverse(&index, dist);
-    index -= 1;
-#endif
-	dist = (dist >> index) + (2 * index);
-  }
-  return dist;
-}
-
-ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBits(int d) {
-  int dist = d - 1;
-  int index = 0;
-  if (dist >= 4) {
-#if defined(__GUNC__)
-    index = 31 - __builtin_clz(dist) - 1;
-#else
-    _BitScanReverse(&index, dist);
-    index -= 1;
-#endif
-  }
-  return index;
-}
-
-ZOPFLI_UTIL_INLINE int ZopfliGetDistExtraBitsValue(int d) {
-  int dist = d - 1;
-  int mask, index;
-  mask = 0;
-  if (dist > 4) {
-#if defined(__GUNC__)
-    index = 31 - __builtin_clz(dist) - 1;
-    mask = (1 << index) - 1;
-#else
-    _BitScanReverse(&index, dist);
-    index -= 1;
-/*    _bittestandset(&mask, index);
-	mask -= 1;*/
-	/* stupid M$VC always allocates a memory for the var, therefore not as efficient as bit shift */
-	mask = (1 << index) - 1;
-#endif
-	mask = dist & mask;
-  }
-  return mask;
-}
-#endif
-
-int ZopfliPrintSizeVerbose(size_t insize, size_t outsize, const char *name);
+/* Gets the amount of extra bits for the given distance symbol. */
+int ZopfliGetDistSymbolExtraBits(int s);
 
 /*
 Appends value to dynamically allocated memory, doubling its allocation size
@@ -235,44 +163,23 @@ equal than *size.
   if (!((*size) & ((*size) - 1))) {\
     /*double alloc size if it's a power of two*/\
     void** data_void = reinterpret_cast<void**>(data);\
-    *data_void = (*size) == 0 ? realloc(NULL, sizeof(**data))\
+    *data_void = (*size) == 0 ? malloc(sizeof(**data))\
                               : realloc((*data), (*size) * 2 * sizeof(**data));\
   }\
   (*data)[(*size)] = (value);\
   (*size)++;\
 }
-#define ZOPFLI_APPEND_DATA_T(T, value, data, size) {\
-  if (!((size) & ((size) - 1))) {\
-    /*double alloc size if it's a power of two*/\
-    void *temp = size == 0 ? realloc(NULL, sizeof(*(data)))\
-                           : realloc((data), (size) * 2 * sizeof(*(data)));\
-    (data) = reinterpret_cast<T*> temp;\
-  }\
-  (data)[(size)] = (value);\
-  ++(size);\
-}
 #else /* C gives problems with strict-aliasing rules for (void**) cast */
 #define ZOPFLI_APPEND_DATA(/* T */ value, /* T** */ data, /* size_t* */ size) {\
   if (!((*size) & ((*size) - 1))) {\
     /*double alloc size if it's a power of two*/\
-    (*data) = (*size) == 0 ? realloc(NULL, sizeof(**data))\
+    (*data) = (*size) == 0 ? malloc(sizeof(**data))\
                            : realloc((*data), (*size) * 2 * sizeof(**data));\
   }\
   (*data)[(*size)] = (value);\
   (*size)++;\
 }
-#define ZOPFLI_APPEND_DATA_T(T, value, data, size) {\
-  if (!((size) & ((size) - 1))) {\
-    /*double alloc size if it's a power of two*/\
-    void *temp = size == 0 ? realloc(NULL, sizeof(*(data)))\
-                           : realloc((data), (size) * 2 * sizeof(*(data)));\
-    (data) = (T*) temp;\
-  }\
-  (data)[(size)] = (value);\
-  ++(size);\
-}
 #endif
 
-#undef ZOPFLI_UTIL_INLINE
 
 #endif  /* ZOPFLI_UTIL_H_ */

@@ -46,12 +46,6 @@ actual theoritical bit lengths according to the entropy. Since the resulting
 values are fractional, they cannot be used to encode the tree specified by
 DEFLATE.
 */
-#if defined(_MSC_VER) && !defined(DEBUG) && !defined(_DEBUG)
-void __fastcall _ZopfliCalculateEntropy(size_t, const size_t*, double*);
-#define ZopfliCalculateEntropy(ct, n, o) \
-  ((n != 0) ? _ZopfliCalculateEntropy((n)-1, ct, o) : (void)0)
-#else
 void ZopfliCalculateEntropy(const size_t* count, size_t n, double* bitlengths);
-#endif
 
 #endif  /* ZOPFLI_TREE_H_ */

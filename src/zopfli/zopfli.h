@@ -52,10 +52,7 @@ typedef struct ZopfliOptions {
   int blocksplitting;
 
   /*
-  If true, chooses the optimal block split points only after doing the iterative
-  LZ77 compression. If false, chooses the block split points first, then does
-  iterative LZ77 on each individual block. Depending on the file, either first
-  or last gives the best compression. Default: false (0).
+  No longer used, left for compatibility.
   */
   int blocksplittinglast;
 
@@ -66,27 +63,8 @@ typedef struct ZopfliOptions {
   int blocksplittingmax;
 } ZopfliOptions;
 
-#if defined(__GNUC__)
-#define ZOPFLI_INLINE __inline static
-#elif defined(_MSC_VER)
-#define ZOPFLI_INLINE __forceinline static
-#else
-#define ZOPFLI_INLINE
-#endif
-
 /* Initializes options with default values. */
-ZOPFLI_INLINE void ZopfliInitOptions(ZopfliOptions* options);
-
-#if defined(__GNUC__) || defined(_MSC_VER)
-ZOPFLI_INLINE void ZopfliInitOptions(ZopfliOptions* options) {
-  options->verbose = 0;
-  options->verbose_more = 0;
-  options->numiterations = 15;
-  options->blocksplitting = 1;
-  options->blocksplittinglast = 0;
-  options->blocksplittingmax = 15;
-}
-#endif
+void ZopfliInitOptions(ZopfliOptions* options);
 
 /* Output format */
 typedef enum {

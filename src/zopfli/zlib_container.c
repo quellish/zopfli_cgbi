@@ -71,6 +71,9 @@ void ZopfliZlibCompress(const ZopfliOptions* options,
   ZOPFLI_APPEND_DATA(checksum % 256, out, outsize);
 
   if (options->verbose) {
-    ZopfliPrintSizeVerbose(insize, *outsize, "Zlib");
+    fprintf(stderr,
+            "Original Size: %d, Zlib: %d, Compression: %f%% Removed\n",
+            (int)insize, (int)*outsize,
+            100.0 * (double)(insize - *outsize) / (double)insize);
   }
 }
